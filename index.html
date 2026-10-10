@@ -1,0 +1,778 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b6b62">
+<title>Clinic Ops Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: left rail of departments-style navigation, working surface on the right; stacks to a top tab strip on phones. */
+:root{
+  --bg:#f3f5f6; --surface:#ffffff; --surface-2:#eaeef0; --line:#d7dde1;
+  --fg:#17232b; --fg-2:#4d5d68; --fg-3:#7a8a95;
+  --accent:#0b6b62; --accent-ink:#ffffff; --accent-soft:#d9efec;
+  --gold:#b7791f; --gold-soft:#f8ecd6;
+  --red:#b42318; --red-soft:#fde4e1; --amber:#a15c07; --amber-soft:#fdf0d5;
+  --green:#1d7a3e; --green-soft:#ddf3e4; --blue:#1f5fa8; --blue-soft:#e0ebf8;
+  --shadow:0 1px 2px rgba(18,35,43,.06),0 4px 16px rgba(18,35,43,.06);
+  --f-display:"Sora",ui-sans-serif,system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1619; --surface:#162026; --surface-2:#1d2a31; --line:#2b3a42;
+  --fg:#e6edf0; --fg-2:#a9b8c0; --fg-3:#7d8e98;
+  --accent:#3fb8a9; --accent-ink:#06211e; --accent-soft:#163a37;
+  --gold:#e3a94f; --gold-soft:#3a2d17;
+  --red:#ff8a7e; --red-soft:#3d1c19; --amber:#f0b34f; --amber-soft:#3a2b12;
+  --green:#6fd394; --green-soft:#16321f; --blue:#86b6ef; --blue-soft:#172a40;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1619; --surface:#162026; --surface-2:#1d2a31; --line:#2b3a42;
+  --fg:#e6edf0; --fg-2:#a9b8c0; --fg-3:#7d8e98;
+  --accent:#3fb8a9; --accent-ink:#06211e; --accent-soft:#163a37;
+  --gold:#e3a94f; --gold-soft:#3a2d17;
+  --red:#ff8a7e; --red-soft:#3d1c19; --amber:#f0b34f; --amber-soft:#3a2b12;
+  --green:#6fd394; --green-soft:#16321f; --blue:#86b6ef; --blue-soft:#172a40;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.45}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:1.45rem;font-weight:700}
+h2{font-size:1.05rem;font-weight:600}
+h3{font-size:.92rem;font-weight:600}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num,.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.app{display:grid;grid-template-columns:220px minmax(0,1fr);min-height:100vh}
+.rail{background:var(--surface);border-right:1px solid var(--line);padding:18px 12px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh}
+.brand{display:flex;gap:10px;align-items:center;padding:0 6px}
+.brand-mark{width:30px;height:30px;border-radius:8px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-family:var(--f-display);font-weight:700;font-size:13px}
+.brand b{font-family:var(--f-display);font-size:.98rem;display:block}
+.brand small{color:var(--fg-3);font-size:.72rem}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{all:unset;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;color:var(--fg-2);font-weight:500}
+.nav button:hover{background:var(--surface-2);color:var(--fg)}
+.nav button[aria-current="page"]{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.nav button:focus-visible{outline:2px solid var(--accent)}
+.badge{font-family:var(--f-mono);font-size:.7rem;padding:1px 7px;border-radius:99px;background:var(--red-soft);color:var(--red)}
+.rail-foot{margin-top:auto;font-size:.75rem;color:var(--fg-3);padding:0 6px;display:flex;flex-direction:column;gap:6px}
+.main{padding-block:20px 60px;padding-inline:28px;min-width:0;display:flex;flex-direction:column;gap:18px}
+.topbar{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+.topbar .who{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;min-width:0}
+.topbar .who select{max-width:260px}
+.eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--fg-3);font-weight:600}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.75rem;color:var(--fg-2);font-weight:500;min-width:0}
+input,select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 9px;min-width:0;width:100%}
+textarea{min-height:70px;resize:vertical}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:500;white-space:nowrap}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.sm{padding:4px 9px;font-size:.8rem}
+.btn.danger{color:var(--red);border-color:var(--red-soft)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.panel-head p{margin:2px 0 0;color:var(--fg-3);font-size:.8rem}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.kpi .v{font-family:var(--f-display);font-size:1.6rem;font-weight:600;font-variant-numeric:tabular-nums}
+.kpi .l{font-size:.75rem;color:var(--fg-2)}
+.kpi.warn{border-color:var(--red);box-shadow:inset 3px 0 0 var(--red)}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.filters label.f{width:auto;flex:1 1 140px;max-width:220px}
+.list{display:flex;flex-direction:column}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 4px;border-top:1px solid var(--line)}
+.row:first-child{border-top:0}
+.row .t{font-weight:600;overflow-wrap:anywhere}
+.row .m{font-size:.78rem;color:var(--fg-3);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:2px}
+.row .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.grid2 .row{grid-template-columns:auto minmax(0,1fr)}.grid2 .row .acts{grid-column:2;justify-content:flex-start}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;letter-spacing:.02em}
+.p-urgent{background:var(--red-soft);color:var(--red)}
+.p-high{background:var(--amber-soft);color:var(--amber)}
+.p-normal{background:var(--blue-soft);color:var(--blue)}
+.p-low{background:var(--surface-2);color:var(--fg-2)}
+.s-done,.ok{background:var(--green-soft);color:var(--green)}
+.s-progress{background:var(--blue-soft);color:var(--blue)}
+.s-blocked,.bad{background:var(--red-soft);color:var(--red)}
+.s-todo,.muted{background:var(--surface-2);color:var(--fg-2)}
+.warnc{background:var(--amber-soft);color:var(--amber)}
+.goldc{background:var(--gold-soft);color:var(--gold)}
+.pbar{width:6px;align-self:stretch;border-radius:3px}
+.pbar.urgent{background:var(--red)}.pbar.high{background:var(--amber)}.pbar.normal{background:var(--blue)}.pbar.low{background:var(--line)}
+.missed-tag{color:var(--red);font-weight:600}
+.empty{padding:22px;text-align:center;color:var(--fg-3);border:1px dashed var(--line);border-radius:var(--r);display:flex;flex-direction:column;gap:10px;align-items:center}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.85rem}
+th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.score{display:flex;align-items:center;gap:8px;min-width:120px}
+.score .track{flex:1;height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden}
+.score .fill{height:100%;border-radius:3px}
+.note{background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:.8rem;color:var(--fg-2)}
+.banner{border-radius:8px;padding:10px 14px;font-size:.85rem;display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.banner.info{background:var(--gold-soft);color:var(--fg)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow-x:auto;max-width:100%}
+.seg button{white-space:nowrap}
+.seg button{all:unset;cursor:pointer;padding:6px 12px;font-size:.82rem;color:var(--fg-2)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+dialog{border:1px solid var(--line);border-radius:14px;padding:0;background:var(--surface);color:var(--fg);width:min(640px,calc(100vw - 32px));max-height:calc(100vh - 40px);box-shadow:var(--shadow)}
+dialog::backdrop{background:rgba(10,20,25,.45)}
+dialog form{display:flex;flex-direction:column;max-height:calc(100vh - 42px)}
+.dlg-head{padding:16px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px}
+.dlg-body{padding:16px 18px;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.dlg-body .full{grid-column:1/-1}
+.dlg-foot{padding:12px 18px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:140px minmax(0,1fr);gap:6px 12px;font-size:.85rem}
+.kv dt{color:var(--fg-3)}.kv dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:8px;font-size:.85rem;z-index:50;max-width:calc(100vw - 32px)}
+.mini{font-size:.78rem;color:var(--fg-3)}
+.stack{display:flex;flex-direction:column;gap:16px}
+.sec-title{display:flex;align-items:center;gap:8px}
+.cnt{font-family:var(--f-mono);font-size:.75rem;color:var(--fg-3)}
+.checklist{margin:0;padding-left:18px;font-size:.85rem}
+@media (max-width:1100px){.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:860px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .rail{min-width:0}.topbar .who{width:100%}.topbar .who label.f{flex:1 1 160px}
+  .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--line);padding:12px 16px;gap:10px}
+  .nav{flex-direction:row;overflow-x:auto;gap:4px}
+  .nav button{white-space:nowrap}
+  .rail-foot{display:none}
+  .main{padding-inline:16px}
+  .grid2{grid-template-columns:1fr}
+}
+@media (max-width:520px){
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .dlg-body{grid-template-columns:1fr}
+  .row{grid-template-columns:auto minmax(0,1fr)}
+  .row .acts{grid-column:2;justify-content:flex-start}
+  .kv{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+#auth{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;padding:16px;z-index:40;overflow:auto}
+.auth-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:24px;width:min(400px,100%);display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)}
+.auth-err{color:var(--red);font-size:.85rem;min-height:1.2em}
+body{margin:0}
+[hidden]{display:none!important}
+img{max-width:100%}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+</head>
+<body>
+<div id="auth" hidden></div>
+<div class="app">
+  <aside class="rail">
+    <div class="brand"><div class="brand-mark">OD</div><div><b>Clinic Ops Desk</b><small>Head office · Dubai</small></div></div>
+    <nav class="nav" id="nav" aria-label="Sections"></nav>
+    <div class="rail-foot" id="railFoot"></div>
+  </aside>
+  <main class="main" id="main"><div class="empty">Loading your workspace…</div></main>
+</div>
+<dialog id="dlg"><form id="dlgForm" novalidate></form></dialog>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ---------- constants ---------- */
+const TZ='Asia/Dubai';
+const DEPTS=['Operations','Clinic Manager','HR','Accounts','Marketing','Insurance','Aesthetic Coordinator','Dental Coordinator','Reception Desk Supervisor','Customer Relations'];
+const PRI=[['urgent','Urgent',4],['high','High',3],['normal','Normal',2],['low','Low',1]];
+const PRIW=Object.fromEntries(PRI.map(p=>[p[0],p[2]]));
+const PRIL=Object.fromEntries(PRI.map(p=>[p[0],p[1]]));
+const STATUS=[['todo','To do'],['progress','In progress'],['blocked','Blocked'],['done','Done']];
+const STATUSL=Object.fromEntries(STATUS);
+const ROLES=[['staff','Staff'],['manager','Clinic manager'],['admin','Head office admin']];
+const ROLEL=Object.fromEntries(ROLES);
+const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const REC=[['none','One-off'],['daily','Every day'],['weekly','Every week'],['monthly','Every month']];
+const CSTAT=[['new','New'],['investigating','Investigating'],['resolved','Resolved'],['closed','Closed']];
+const CSTATL=Object.fromEntries(CSTAT);
+const SEV=[['critical','Critical',4],['high','High',24],['medium','Medium',48],['low','Low',72]];
+const SEVL=Object.fromEntries(SEV.map(s=>[s[0],s[1]]));
+const SEVH=Object.fromEntries(SEV.map(s=>[s[0],s[2]]));
+const CCATS=['Waiting time','Staff behaviour','Treatment outcome','Billing / pricing','Insurance / claim','Appointment / booking','Facility / hygiene','Other'];
+const CHANNELS=['Walk-in','Phone','WhatsApp','Email','Google review','Social media'];
+const COLS=['clinics','staff','tasks','reports','complaints','requests'];
+const RTYPES=['Leave','Purchase / expense','Patient discount / refund','Overtime','Schedule / shift change','Insurance write-off','Marketing spend','Other'];
+const RSTAT={pending:['Waiting for manager','warnc'],recommended:['Recommended · awaiting admin','s-progress'],not_recommended:['Not recommended · awaiting admin','bad'],approved:['Approved','ok'],rejected:['Rejected','bad']};
+
+/* ---------- time (Dubai) ---------- */
+const dtf=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
+function dubai(d=new Date()){const p=Object.fromEntries(dtf.formatToParts(d).map(x=>[x.type,x.value]));return{date:`${p.year}-${p.month}-${p.day}`,time:`${p.hour}:${p.minute}`}}
+const today=()=>dubai().date;
+const nowKey=()=>{const d=dubai();return d.date+'T'+d.time};
+function addDays(s,n){const d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
+function addMonths(s,n){const d=new Date(s+'T00:00:00Z');const day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+n);const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));return d.toISOString().slice(0,10)}
+const weekday=s=>new Date(s+'T00:00:00Z').getUTCDay();
+function fmtDate(s){if(!s)return'—';const d=new Date(s+'T00:00:00Z');const t=today();if(s===t)return'Today';if(s===addDays(t,-1))return'Yesterday';if(s===addDays(t,1))return'Tomorrow';return d.toLocaleDateString('en-GB',{timeZone:'UTC',day:'numeric',month:'short'})}
+function hoursSince(iso){return(Date.now()-new Date(iso).getTime())/36e5}
+function ago(iso){const h=hoursSince(iso);if(h<1)return Math.max(1,Math.round(h*60))+'m';if(h<48)return Math.round(h)+'h';return Math.round(h/24)+'d'}
+
+/* ---------- utils ---------- */
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const opts=(arr,sel,blank)=>(blank!==undefined?`<option value="">${esc(blank)}</option>`:'')+arr.map(a=>{const[v,l]=Array.isArray(a)?a:[a,a];return`<option value="${esc(v)}"${v===sel?' selected':''}>${esc(l)}</option>`}).join('');
+const pct=x=>x==null||isNaN(x)?'—':Math.round(x*100)+'%';
+function lsGet(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch{return d}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
+let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- store: shared db when available, this-device storage otherwise ---------- */
+const S={clinics:{},staff:{},tasks:{},reports:{},complaints:{},requests:{}};
+let mode='connecting',db=null,adminOK=true;const chains={};
+function clean(o){return JSON.parse(JSON.stringify(o))}
+function saveLocal(){lsSet('cod.data',S)}
+function errMsg(e){if(e&&e.code==='quota_exceeded')return'Storage is full. Remove old sample data or closed items.';if(e&&e.code==='invalid_argument')return'You have view-only access, so changes are not saved.';return'Could not save. Check your connection and try again.'}
+const SB_URL='https://oxucnacsnkdxdprzudhx.supabase.co',SB_KEY='sb_publishable_XhBp3WjCgxvOQ12bx4Yg9A_oi_-cvwx',LOGIN_DOMAIN='staff.clinicopsdesk.app';
+const sb=window.supabase.createClient(SB_URL,SB_KEY);
+let PROFILE=null,PROFILES={},channel=null;
+function saveErr(e){const m=e&&e.message||'';if(/row-level security/i.test(m))return'You do not have permission to change this.';if(/JWT|session/i.test(m))return'Your session expired. Sign in again.';return m||'Could not save. Check your connection.'}
+function put(col,id,obj){obj=clean(obj);const prev=S[col][id];S[col]={...S[col],[id]:obj};schedule();
+  const k=col+'/'+id;chains[k]=(chains[k]||Promise.resolve()).then(async()=>{const{error}=await sb.from('docs').upsert({col,id,data:obj});
+    if(error){toast(saveErr(error));const c={...S[col]};if(prev)c[id]=prev;else delete c[id];S[col]=c;schedule()}});return chains[k]}
+function del(col,id){const prev=S[col][id];const c={...S[col]};delete c[id];S[col]=c;schedule();
+  const k=col+'/'+id;chains[k]=(chains[k]||Promise.resolve()).then(async()=>{const{error,count}=await sb.from('docs').delete({count:'exact'}).eq('col',col).eq('id',id);
+    if(error||count===0){toast(error?saveErr(error):'You do not have permission to delete this.');if(prev)S[col]={...S[col],[id]:prev};schedule()}});return chains[k]}
+async function loadAll(){const all=[];for(let from=0;;from+=1000){const{data,error}=await sb.from('docs').select('col,id,data').order('col').order('id').range(from,from+999);if(error)throw error;all.push(...data);if(data.length<1000)break}
+  const N={};COLS.forEach(c=>N[c]={});all.forEach(r=>{if(N[r.col])N[r.col][r.id]=r.data});Object.assign(S,N)}
+async function loadProfiles(){const{data}=await sb.from('profiles').select('user_id,username,staff_id,role');PROFILES={};(data||[]).forEach(p=>{PROFILES[p.user_id]=p})}
+const loginOf=sid=>Object.values(PROFILES).find(p=>p.staff_id===sid);
+async function callFn(body){const{data,error}=await sb.functions.invoke('staff-login',{body});if(error){let m='Request failed. Try again.';try{m=(await error.context.json()).error||m}catch{}throw new Error(m)}return data}
+const toEmail=u=>{u=u.trim().toLowerCase();return u.includes('@')?u:`${u}@${LOGIN_DOMAIN}`};
+async function boot(){
+  let session=null;try{session=(await sb.auth.getSession()).data.session}catch{}
+  if(session)return startSession(session);
+  showAuth()}
+async function showAuth(msg){
+  let hasAdmin=true;try{const{data,error}=await sb.rpc('has_admin');if(!error)hasAdmin=data!==false}catch{}
+  const a=document.getElementById('auth');a.hidden=false;
+  a.innerHTML=hasAdmin?`<form class="auth-card" id="loginForm" novalidate><div class="brand"><div class="brand-mark">OD</div><div><b>Clinic Ops Desk</b><small>Head office · Dubai</small></div></div>
+   <h1>Sign in</h1><label class="f">Username<input id="lu" name="lu" autocomplete="username" autocapitalize="none" required></label><label class="f">Password<input id="lp" name="lp" type="password" autocomplete="current-password" required></label>
+   <div class="auth-err" id="lerr">${esc(msg||'')}</div><button class="btn primary" type="submit">Sign in</button><p class="mini">No login yet? Ask your head office admin to create one for you.</p></form>`
+  :`<form class="auth-card" id="setupForm" novalidate><div class="brand"><div class="brand-mark">OD</div><div><b>Clinic Ops Desk</b><small>First-time setup</small></div></div>
+   <h1>Create the head office admin</h1><p class="mini">This runs once. Enter the setup code you were given.</p>
+   <label class="f">Setup code<input id="sc" name="sc" autocapitalize="characters" required></label><label class="f">Admin username<input id="su" name="su" autocapitalize="none" placeholder="e.g. sahir" required></label>
+   <label class="f">Password (8+ characters)<input id="sp" name="sp" type="password" autocomplete="new-password" required></label><label class="f">Repeat password<input id="sp2" name="sp2" type="password" autocomplete="new-password" required></label>
+   <div class="auth-err" id="lerr"></div><button class="btn primary" type="submit">Create admin account</button></form>`;
+  const f=a.querySelector('form'),err=a.querySelector('#lerr');
+  f.addEventListener('submit',async e=>{e.preventDefault();err.textContent='';const btn=f.querySelector('button[type=submit]');btn.disabled=true;
+    try{if(f.id==='setupForm'){const u=f.su.value.trim().toLowerCase(),p=f.sp.value;if(p!==f.sp2.value)throw new Error('The passwords do not match.');
+        await callFn({action:'bootstrap',setup_code:f.sc.value,username:u,password:p});
+        const{data,error}=await sb.auth.signInWithPassword({email:toEmail(u),password:p});if(error)throw error;return startSession(data.session)}
+      const{data,error}=await sb.auth.signInWithPassword({email:toEmail(f.lu.value),password:f.lp.value});
+      if(error)throw new Error(/invalid/i.test(error.message)?'Wrong username or password.':error.message);await startSession(data.session)}
+    catch(x){err.textContent=x.message||String(x);btn.disabled=false}});
+  const first=a.querySelector('input');if(first)first.focus()}
+async function startSession(session){
+  const{data:p}=await sb.from('profiles').select('user_id,username,staff_id,role').eq('user_id',session.user.id).maybeSingle();
+  if(!p){await sb.auth.signOut();return showAuth('This login has no access. Ask the head office admin.')}
+  PROFILE=p;adminOK=p.role==='admin';if(!adminOK){UI.actingAs=p.staff_id||'';UI.clinic=''}
+  document.getElementById('auth').hidden=true;document.getElementById('main').innerHTML='<div class="empty">Loading your workspace…</div>';
+  try{await Promise.all([loadAll(),loadProfiles()])}catch(e){toast('Could not load data. Check your connection.')}
+  if(!adminOK){const st=S.staff[p.staff_id];if(st&&p.role==='manager')UI.clinic=st.clinicId}
+  mode='shared';
+  if(channel)sb.removeChannel(channel);
+  channel=sb.channel('live').on('postgres_changes',{event:'*',schema:'public',table:'docs'},pl=>{
+    if(pl.eventType==='DELETE'){const o=pl.old||{};if(S[o.col]&&S[o.col][o.id]){const c={...S[o.col]};delete c[o.id];S[o.col]=c}}
+    else{const n=pl.new;if(n&&S[n.col])S[n.col]={...S[n.col],[n.id]:n.data}}schedule()})
+   .on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>loadProfiles().then(()=>{const p2=PROFILES[PROFILE.user_id];if(!p2)return signOut();PROFILE=p2;adminOK=p2.role==='admin';schedule()}))
+   .subscribe();
+  schedule()}
+async function signOut(){try{await sb.auth.signOut()}catch{}PROFILE=null;PROFILES={};COLS.forEach(c=>S[c]={});if(channel){sb.removeChannel(channel);channel=null}UI.actingAs='';saveUI();if(dlg.open)dlg.close();document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML='';showAuth()}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&PROFILE)loadAll().then(schedule).catch(()=>{})});
+
+/* ---------- ui state ---------- */
+const UI=Object.assign({view:'admin',rf:'',actWho:'',actDays:7,actingAs:'',clinic:'',tf:{q:'',dept:'',status:'open',pri:'',who:''},rDate:'',cf:{status:'open',clinic:''},effDays:30,effBy:'staff'},lsGet('cod.ui',{}));
+function saveUI(){lsSet('cod.ui',{view:UI.view,actingAs:UI.actingAs,clinic:UI.clinic,tf:UI.tf,effDays:UI.effDays,effBy:UI.effBy,cf:UI.cf})}
+
+/* ---------- domain helpers ---------- */
+const staffArr=()=>Object.entries(S.staff).map(([id,s])=>({id,...s})).sort((a,b)=>a.name.localeCompare(b.name));
+const clinicArr=()=>Object.entries(S.clinics).map(([id,c])=>({id,...c})).sort((a,b)=>a.name.localeCompare(b.name));
+const taskArr=()=>Object.entries(S.tasks).map(([id,t])=>({id,...t}));
+const me=()=>UI.actingAs?({id:UI.actingAs,...S.staff[UI.actingAs]}):null;
+const myRole=()=>{if(PROFILE&&!adminOK)return PROFILE.role;const m=me();if(m&&m.name)return m.role;return adminOK?'admin':'none'};
+const clinicName=id=>S.clinics[id]?.name||'—';
+const staffName=id=>S.staff[id]?.name||'Unassigned';
+const dueKey=t=>t.dueDate+'T'+(t.dueTime||'23:59');
+const isOpen=t=>t.status!=='done';
+const isOverdue=t=>isOpen(t)&&t.dueDate&&dueKey(t)<nowKey();
+const isMissed=t=>isOpen(t)&&t.dueDate&&t.dueDate<today();
+function inClinic(x){return!UI.clinic||x.clinicId===UI.clinic}
+function taskSort(a,b){const ma=isMissed(a)?1:0,mb=isMissed(b)?1:0;if(ma!==mb)return mb-ma;const pa=PRIW[a.priority]||0,pb=PRIW[b.priority]||0;if(pa!==pb)return pb-pa;return(dueKey(a)).localeCompare(dueKey(b))}
+function managerOf(clinicId){return staffArr().find(s=>s.clinicId===clinicId&&s.role==='manager')}
+function worksOn(s,date){return s.active!==false&&(s.dayOff==null||s.dayOff===''||+s.dayOff!==weekday(date))&&(!s.startDate||date>=s.startDate)}
+function reportFor(sid,date){return S.reports[date+'_'+sid]}
+
+function carryOver(t){const old=t.dueDate;const nt={...t};delete nt.id;nt.originalDue=t.originalDue||old;nt.carryCount=(t.carryCount||0)+1;nt.dueDate=today();
+  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office',what:`Carried over from ${old}`}].slice(-20);return put('tasks',t.id,nt)}
+function setStatus(t,st){const nt={...t};delete nt.id;nt.status=st;
+  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office',what:'Status: '+STATUSL[st]}].slice(-20);
+  if(st==='done'){nt.completedAt=new Date().toISOString();nt.completedLocal=nowKey();nt.verify='pending';delete nt.verifiedBy;delete nt.verifiedAt;
+    if(t.recurrence&&t.recurrence!=='none'&&!t.nextCreated){nt.nextCreated=true;const base=t.dueDate||today();
+      let nd=t.recurrence==='daily'?addDays(base,1):t.recurrence==='weekly'?addDays(base,7):addMonths(base,1);if(nd<today())nd=today();
+      const n={title:t.title,notes:t.notes||'',clinicId:t.clinicId,dept:t.dept,assigneeId:t.assigneeId,priority:t.priority,dueDate:nd,dueTime:t.dueTime||'',recurrence:t.recurrence,status:'todo',createdAt:new Date().toISOString(),createdBy:t.createdBy||'',carryCount:0,sample:t.sample||undefined,history:[]};
+      put('tasks',uid(),n)}}
+  else{delete nt.completedAt;delete nt.completedLocal;if(nt.verify!=='returned')delete nt.verify}
+  return put('tasks',t.id,nt)}
+
+/* ---------- efficiency ---------- */
+function calc(days,groupKey){
+  const end=today(),start=addDays(end,-(days-1));const nk=nowKey();
+  const groups={};const g=k=>groups[k]||(groups[k]={assigned:0,done:0,onTime:0,missed:0,hrs:[],expected:0,submitted:0,late:0});
+  taskArr().forEach(t=>{const d=t.originalDue||t.dueDate;if(!d||d<start||d>end)return;if(!inClinic(t))return;
+    const k=groupKey==='dept'?t.dept:t.assigneeId;if(!k)return;const x=g(k);x.assigned++;
+    if(t.status==='done'){x.done++;const deadline=d+'T'+(t.dueTime||'23:59');if((t.completedLocal||'')<=deadline)x.onTime++;if(t.createdAt&&t.completedAt)x.hrs.push((new Date(t.completedAt)-new Date(t.createdAt))/36e5)}
+    if((t.carryCount||0)>0||isOverdue(t))x.missed++});
+  staffArr().forEach(s=>{if(!inClinic(s))return;const k=groupKey==='dept'?s.dept:s.id;const x=g(k);
+    for(let d=start;d<=end;d=addDays(d,1)){if(!worksOn(s,d))continue;const r=reportFor(s.id,d);
+      if(d===end&&!r&&dubai().time<(s.shiftEnd||'18:00'))continue;x.expected++;if(r){x.submitted++;if(r.late)x.late++}}});
+  Object.values(groups).forEach(x=>{x.compRate=x.assigned?x.done/x.assigned:null;x.onTimeRate=x.assigned?x.onTime/x.assigned:null;x.repRate=x.expected?x.submitted/x.expected:null;
+    x.avgHrs=x.hrs.length?x.hrs.reduce((a,b)=>a+b,0)/x.hrs.length:null;
+    if(x.assigned&&x.expected)x.score=Math.round(100*(.5*x.onTimeRate+.3*x.compRate+.2*x.repRate));
+    else if(x.assigned)x.score=Math.round(100*(.625*x.onTimeRate+.375*x.compRate));
+    else if(x.expected)x.score=Math.round(100*x.repRate);else x.score=null});
+  return groups}
+function grade(s){if(s==null)return['No data','muted'];if(s>=85)return['Excellent','ok'];if(s>=70)return['Good','s-progress'];if(s>=50)return['Needs attention','warnc'];return['Poor','bad']}
+function scoreCell(s){const[l,c]=grade(s);const col=s==null?'var(--line)':s>=85?'var(--green)':s>=70?'var(--blue)':s>=50?'var(--amber)':'var(--red)';
+  return`<div class="score"><span class="num" style="width:2.2em;text-align:right">${s==null?'—':s}</span><div class="track"><div class="fill" style="width:${s||0}%;background:${col}"></div></div><span class="chip ${c}">${l}</span></div>`}
+
+/* ---------- render ---------- */
+let raf=0;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;render()})}
+const NAV=[['admin','Admin review',['admin']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
+function render(){
+  if(!PROFILE)return;
+  const role=myRole();const allowed=NAV.filter(n=>n[2].includes(role));
+  if(role==='none'){document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML=topbar()+`<div class="empty"><h2>Choose who you are</h2><p>This login is not linked to a staff member. Ask the head office admin.</p></div>`;return}
+  if(!allowed.find(n=>n[0]===UI.view))UI.view=allowed[0][0];
+  const reqWait=reqArr().filter(r=>canAct(r)).length;
+  const missedN=taskArr().filter(t=>isMissed(t)&&inClinic(t)).length;
+  const openC=Object.values(S.complaints).filter(c=>(c.status==='new'||c.status==='investigating')&&inClinic(c)).length;
+  const myOpen=UI.actingAs?taskArr().filter(t=>t.assigneeId===UI.actingAs&&isOpen(t)&&t.dueDate<=today()).length:0;
+  document.getElementById('nav').innerHTML=allowed.map(([k,l])=>{let b='';if(k==='tasks'&&missedN)b=`<span class="badge" title="Missed tasks">${missedN}</span>`;if(k==='complaints'&&openC)b=`<span class="badge" title="Open complaints">${openC}</span>`;if(k==='requests'&&reqWait)b=`<span class="badge" title="Waiting for your decision">${reqWait}</span>`;if(k==='admin'){const n=reqWait+toVerify().length;if(n)b=`<span class="badge" title="Items waiting for you">${n}</span>`}if(k==='myday'&&myOpen)b=`<span class="badge" title="Due or overdue">${myOpen}</span>`;
+    return`<button data-act="nav" data-v="${k}" ${UI.view===k?'aria-current="page"':''}><span>${l}</span>${b}</button>`}).join('');
+  document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b>${adminOK?' · admin':''}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${adminOK?'<button class="btn sm" data-act="ownPw">Change password</button>':''}<button class="btn sm" data-act="signOut">Sign out</button></span><span>● Live for all staff · Dubai time</span>`;
+  const V={admin:vAdmin,requests:vRequests,dashboard:vDashboard,myday:vMyDay,tasks:vTasks,reports:vReports,complaints:vComplaints,efficiency:vEfficiency,setup:vSetup}[UI.view];
+  const main=document.getElementById('main');const y=window.scrollY;
+  main.innerHTML=topbar()+V();
+  window.scrollTo(0,y)}
+function topbar(){
+  const titles={admin:'Admin review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
+  const d=new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  return`<div class="topbar"><div><div class="eyebrow">${esc(d)}</div><h1>${titles[UI.view]}</h1></div>
+  <div class="who">${adminOK?'':`<button class="btn sm" data-act="signOut" title="Signed in as ${esc(PROFILE.username)}">Sign out</button>`}${!adminOK?'':`<label class="f">View as<select id="actingAs" data-change="acting"><option value="">Head office admin (you)</option>${staffArr().map(s=>`<option value="${s.id}"${s.id===UI.actingAs?' selected':''}>${esc(s.name)} · ${esc(s.dept)}</option>`).join('')}</select></label>`}
+  ${myRole()!=='staff'?`<label class="f">Clinic<select data-change="clinic"><option value="">All clinics</option>${clinicArr().map(c=>`<option value="${c.id}"${c.id===UI.clinic?' selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`:''}</div></div>`}
+
+function taskRow(t,o={}){
+  const missed=isMissed(t),over=isOverdue(t);
+  const due=t.dueDate?`${fmtDate(t.dueDate)}${t.dueTime?' '+t.dueTime:''}`:'No due date';
+  const acts=o.verify?`<button class="btn sm primary" data-act="verifyTask" data-id="${t.id}">Verify</button><button class="btn sm" data-act="returnTask" data-id="${t.id}">Return with note</button>`:o.compact?'':t.status==='done'?`<button class="btn sm" data-act="reopen" data-id="${t.id}">Reopen</button>`:
+   `${missed?`<button class="btn sm" data-act="carry" data-id="${t.id}">Carry to today</button>`:''}${t.status==='todo'?`<button class="btn sm" data-act="start" data-id="${t.id}">Start</button>`:''}<button class="btn sm primary" data-act="done" data-id="${t.id}">Done</button>`;
+  return`<div class="row"><div class="pbar ${t.priority}" title="${PRIL[t.priority]} priority"></div>
+  <div style="min-width:0"><div class="t">${esc(t.title)}</div><div class="m">
+   <span class="chip p-${t.priority}">${PRIL[t.priority]||''}</span><span class="chip s-${t.status}">${STATUSL[t.status]}</span>
+   ${missed?`<span class="missed-tag">Missed · ${esc(due)}</span>`:over?`<span class="missed-tag">Overdue · ${esc(due)}</span>`:`<span>Due ${esc(due)}</span>`}
+   ${t.status==='done'?(t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>'):''}
+   ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by admin: ${esc(t.recommendation)}</span>`:''}
+   ${t.carryCount?`<span class="chip goldc" title="Originally due ${esc(t.originalDue)}">Carried ×${t.carryCount}</span>`:''}
+   ${o.noWho?'':`<span>${esc(staffName(t.assigneeId))}</span>`}<span>${esc(t.dept||'')}</span><span>${esc(clinicName(t.clinicId))}</span>
+   ${t.recurrence&&t.recurrence!=='none'?`<span>↻ ${esc(REC.find(r=>r[0]===t.recurrence)[1])}</span>`:''}</div></div>
+  <div class="acts">${acts}<button class="btn sm ghost" data-act="editTask" data-id="${t.id}" aria-label="Edit task">Edit</button></div></div>`}
+
+function emptySetup(){return`<div class="empty"><h2>Set up your clinics and team first</h2><p>Add your clinics and staff, then assign tasks. Or load clearly marked sample data to try every screen, and remove it later in one click.</p><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn primary" data-act="nav" data-v="setup">Add clinics &amp; staff</button>${adminOK?'<button class="btn" data-act="loadSample">Load sample data</button>':''}</div></div>`}
+
+function vDashboard(){
+  if(!Object.keys(S.staff).length)return emptySetup();
+  const T=taskArr().filter(inClinic),td=today();
+  const open=T.filter(isOpen),missed=T.filter(isMissed).sort(taskSort),dueToday=open.filter(t=>t.dueDate===td),doneToday=T.filter(t=>t.status==='done'&&(t.completedLocal||'').startsWith(td));
+  const staff=staffArr().filter(inClinic).filter(s=>worksOn(s,td));
+  const subm=staff.filter(s=>reportFor(s.id,td)),missing=staff.filter(s=>!reportFor(s.id,td));
+  const C=Object.entries(S.complaints).map(([id,c])=>({id,...c})).filter(inClinic).filter(c=>c.status==='new'||c.status==='investigating');
+  const breach=C.filter(c=>hoursSince(c.createdAt)>SEVH[c.severity]);
+  const urgentOpen=open.filter(t=>t.priority==='urgent');
+  const eff=calc(7,'dept');
+  return`<div class="kpis">
+   <div class="kpi"><span class="v">${open.length}</span><span class="l">Open tasks</span></div>
+   <div class="kpi ${missed.length?'warn':''}"><span class="v">${missed.length}</span><span class="l">Missed, need carry-over</span></div>
+   <div class="kpi"><span class="v">${urgentOpen.length}</span><span class="l">Urgent still open</span></div>
+   <div class="kpi"><span class="v">${doneToday.length}<span class="mini"> / ${dueToday.length+doneToday.length}</span></span><span class="l">Done today (of today's load)</span></div>
+   <div class="kpi ${missing.length&&dubai().time>'18:00'?'warn':''}"><span class="v">${subm.length}<span class="mini"> / ${staff.length}</span></span><span class="l">Reports in today</span></div>
+   <div class="kpi ${breach.length?'warn':''}"><span class="v">${C.length}</span><span class="l">Open complaints${breach.length?` · ${breach.length} past SLA`:''}</span></div></div>
+  <div class="grid2">
+   <section class="panel"><div class="panel-head"><div><h2>Missed work</h2><p>Past due and not done. Carry it to today so it isn't lost.</p></div>${missed.length?`<button class="btn sm" data-act="carryAll">Carry all ${missed.length} to today</button>`:''}</div>
+    <div class="list">${missed.slice(0,8).map(t=>taskRow(t)).join('')||'<div class="mini">Nothing missed. Every past task is complete.</div>'}</div>
+    ${missed.length>8?`<button class="btn sm" data-act="gotoMissed">See all ${missed.length}</button>`:''}</section>
+   <section class="panel"><div class="panel-head"><div><h2>End-of-shift reports · today</h2><p>Each report goes to that clinic's manager.</p></div><button class="btn sm" data-act="nav" data-v="reports">Open reports</button></div>
+    <div><div class="eyebrow" style="margin-bottom:6px">Not submitted (${missing.length})</div>${missing.map(s=>`<span class="chip ${dubai().time>(s.shiftEnd||'18:00')?'bad':'muted'}" style="margin:0 4px 4px 0">${esc(s.name)} · ends ${esc(s.shiftEnd||'18:00')}</span>`).join('')||'<span class="mini">Everyone has reported.</span>'}</div>
+    <div><div class="eyebrow" style="margin-bottom:6px">Submitted (${subm.length})</div>${subm.map(s=>{const r=reportFor(s.id,td);return`<button class="chip ${r.late?'warnc':'ok'}" style="margin:0 4px 4px 0;border:0;cursor:pointer" data-act="viewReport" data-id="${td}_${s.id}">${esc(s.name)}${r.late?' · late':''}${r.reviewed?' ✓':''}</button>`}).join('')||'<span class="mini">None yet.</span>'}</div></section>
+  </div>
+  <div class="grid2">
+   <section class="panel"><div class="panel-head"><div><h2>Departments · last 7 days</h2><p>Score = 50% on-time · 30% completed · 20% reports filed.</p></div><button class="btn sm" data-act="nav" data-v="efficiency">Details</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Department</th><th class="n">Open</th><th class="n">Missed</th><th>Score</th></tr></thead><tbody>
+    ${DEPTS.map(d=>{const x=eff[d];const o=open.filter(t=>t.dept===d).length,m=missed.filter(t=>t.dept===d).length;return`<tr><td>${esc(d)}</td><td class="n">${o}</td><td class="n">${m||'·'}</td><td>${scoreCell(x?x.score:null)}</td></tr>`}).join('')}</tbody></table></div></section>
+   <section class="panel"><div class="panel-head"><div><h2>Open patient complaints</h2><p>Oldest first. Red means past its resolution target.</p></div><button class="btn sm" data-act="newComplaint">Log complaint</button></div>
+    <div class="list">${C.sort((a,b)=>a.createdAt.localeCompare(b.createdAt)).slice(0,6).map(complaintRow).join('')||'<div class="mini">No open complaints.</div>'}</div></section>
+  </div>`}
+
+function vMyDay(){
+  const m=me();
+  if(!m||!m.name)return`<div class="empty"><h2>Choose who you are</h2><p>Use “View as” at the top to see any employee’s day.</p></div>`;
+  const td=today(),mine=taskArr().filter(t=>t.assigneeId===m.id);
+  const missed=mine.filter(isMissed).sort(taskSort),todayT=mine.filter(t=>isOpen(t)&&t.dueDate===td).sort(taskSort);
+  const upcoming=mine.filter(t=>isOpen(t)&&t.dueDate>td&&t.dueDate<=addDays(td,7)).sort(taskSort),doneT=mine.filter(t=>t.status==='done'&&(t.completedLocal||'').startsWith(td));
+  const r=reportFor(m.id,td);const mgr=managerOf(m.clinicId);
+  const late=!r&&dubai().time>(m.shiftEnd||'18:00');
+  return`<section class="panel"><div class="panel-head"><div><h2>${esc(m.name)}</h2><p>${esc(m.dept)} · ${esc(clinicName(m.clinicId))} · shift ends ${esc(m.shiftEnd||'18:00')} · reports to ${esc(mgr?.name||'clinic manager')}</p></div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap">${r?`<span class="chip ${r.late?'warnc':'ok'}">Report submitted ${esc(r.submittedLocal.slice(11))}${r.reviewed?' · reviewed':''}</span><button class="btn sm" data-act="reportForm">${r.reviewed?'View report':'Edit report'}</button>`:`<button class="btn primary" data-act="reportForm">Submit end-of-shift report</button>`}
+   <button class="btn" data-act="newTask" data-self="1">Add a task</button><button class="btn" data-act="newRequest">Request approval</button></div></div>
+   ${late?`<div class="banner" style="background:var(--red-soft);color:var(--red)">Your shift has ended and today's report isn't in yet.</div>`:''}</section>
+  ${missed.length?`<section class="panel"><div class="sec-title"><h2>Missed, carry these forward</h2><span class="cnt">${missed.length}</span></div><div class="list">${missed.map(t=>taskRow(t,{noWho:1})).join('')}</div></section>`:''}
+  <section class="panel"><div class="sec-title"><h2>Today, by priority</h2><span class="cnt">${todayT.length}</span></div><div class="list">${todayT.map(t=>taskRow(t,{noWho:1})).join('')||'<div class="mini">Nothing else due today.</div>'}</div></section>
+  <div class="grid2"><section class="panel"><div class="sec-title"><h2>Done today</h2><span class="cnt">${doneT.length}</span></div><div class="list">${doneT.map(t=>taskRow(t,{noWho:1})).join('')||'<div class="mini">Completed tasks appear here and go into your report.</div>'}</div></section>
+  <section class="panel"><div class="sec-title"><h2>Next 7 days</h2><span class="cnt">${upcoming.length}</span></div><div class="list">${upcoming.map(t=>taskRow(t,{noWho:1})).join('')||'<div class="mini">Nothing scheduled.</div>'}</div></section></div>`}
+
+function vTasks(){
+  if(!Object.keys(S.staff).length)return emptySetup();
+  const f=UI.tf;let T=taskArr().filter(inClinic);
+  if(f.q){const q=f.q.toLowerCase();T=T.filter(t=>(t.title+' '+(t.notes||'')).toLowerCase().includes(q))}
+  if(f.dept)T=T.filter(t=>t.dept===f.dept);if(f.pri)T=T.filter(t=>t.priority===f.pri);if(f.who)T=T.filter(t=>t.assigneeId===f.who);
+  if(f.status==='open')T=T.filter(isOpen);else if(f.status==='missed')T=T.filter(isMissed);else if(f.status==='done')T=T.filter(t=>t.status==='done');else if(f.status==='today')T=T.filter(t=>t.dueDate===today());
+  T.sort(f.status==='done'?(a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''):taskSort);
+  const missedN=T.filter(isMissed).length;
+  return`<section class="panel"><div class="filters">
+   <label class="f">Search<input id="tf-q" data-input="tf.q" value="${esc(f.q)}" placeholder="Task title or notes"></label>
+   <label class="f">Show<select data-change="tf.status">${opts([['open','Open'],['today','Due today'],['missed','Missed'],['done','Completed'],['all','All']],f.status)}</select></label>
+   <label class="f">Department<select data-change="tf.dept">${opts(DEPTS,f.dept,'All departments')}</select></label>
+   <label class="f">Priority<select data-change="tf.pri">${opts(PRI.map(p=>[p[0],p[1]]),f.pri,'Any priority')}</select></label>
+   <label class="f">Assigned to<select data-change="tf.who">${opts(staffArr().filter(inClinic).map(s=>[s.id,s.name]),f.who,'Anyone')}</select></label>
+   <div style="display:flex;gap:8px;margin-left:auto">${missedN?`<button class="btn" data-act="carryAll">Carry ${missedN} missed to today</button>`:''}<button class="btn primary" data-act="newTask">New task</button></div></div>
+   <div class="list">${T.slice(0,300).map(t=>taskRow(t)).join('')||'<div class="empty">No tasks match these filters.</div>'}</div>${T.length>300?`<div class="mini">Showing 300 of ${T.length}. Narrow the filters to see the rest.</div>`:''}</section>`}
+
+function vReports(){
+  if(!Object.keys(S.staff).length)return emptySetup();
+  const d=UI.rDate||today();const staff=staffArr().filter(inClinic).filter(s=>s.active!==false||reportFor(s.id,d));
+  const rows=staff.map(s=>{const r=reportFor(s.id,d);const off=!worksOn(s,d);let st;
+    if(r)st=`<span class="chip ${r.late?'warnc':'ok'}">${r.late?'Late':'On time'} · ${esc(r.submittedLocal.slice(11))}</span>`;
+    else if(off)st=`<span class="chip muted">Day off</span>`;else if(d<today()||dubai().time>(s.shiftEnd||'18:00'))st=`<span class="chip bad">Missing</span>`;else st=`<span class="chip muted">Due by ${esc(s.shiftEnd||'18:00')}</span>`;
+    const mgr=managerOf(s.clinicId);
+    return`<tr><td><b>${esc(s.name)}</b><div class="mini">${esc(s.dept)}</div></td><td>${esc(clinicName(s.clinicId))}<div class="mini">to ${esc(mgr?.name||'—')}</div></td><td>${st}</td><td class="n">${r?r.completedIds.length:'·'}</td><td class="n">${r?r.pendingIds.length:'·'}</td><td>${r?(r.adminVerified?`<span class="chip ok">Verified by admin</span>`:r.reviewed?`<span class="chip ok">Reviewed</span>`:`<span class="chip s-progress">Awaiting review</span>`):''}</td><td>${r?`<button class="btn sm" data-act="viewReport" data-id="${d}_${s.id}">Open</button>`:''}</td></tr>`});
+  const sub=staff.filter(s=>reportFor(s.id,d)).length,exp=staff.filter(s=>worksOn(s,d)).length;
+  return`<section class="panel"><div class="panel-head"><div><h2>${fmtDate(d)} · ${sub} of ${exp} submitted</h2><p>Staff submit from “My day” before their shift ends. Late means after their shift end time.</p></div>
+   <div style="display:flex;gap:8px;align-items:flex-end"><button class="btn sm" data-act="rDay" data-n="-1" aria-label="Previous day">‹</button><input type="date" id="rDate" data-change="rDate" value="${d}" style="width:auto"><button class="btn sm" data-act="rDay" data-n="1" aria-label="Next day">›</button></div></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Staff</th><th>Clinic · manager</th><th>Status</th><th class="n">Done</th><th class="n">Pending</th><th>Review</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`}
+
+function complaintRow(c){const h=hoursSince(c.createdAt),open=c.status==='new'||c.status==='investigating',breach=open&&h>SEVH[c.severity];
+  return`<div class="row"><div class="pbar ${c.severity==='critical'?'urgent':c.severity==='high'?'high':c.severity==='medium'?'normal':'low'}"></div><div style="min-width:0"><div class="t">${esc(c.patient)}${c.fileNo?` <span class="mini mono">#${esc(c.fileNo)}</span>`:''} · ${esc(c.category)}</div>
+  <div class="m"><span class="chip ${c.severity==='critical'||c.severity==='high'?'bad':'warnc'}">${SEVL[c.severity]}</span><span class="chip ${c.status==='new'?'s-blocked':c.status==='investigating'?'s-progress':'s-done'}">${CSTATL[c.status]}</span>
+  <span ${breach?'class="missed-tag"':''}>${open?`Open ${ago(c.createdAt)} · target ${SEVH[c.severity]}h`:`Logged ${esc(c.createdAt.slice(0,10))}`}</span><span>${esc(clinicName(c.clinicId))}</span><span>${esc(c.dept||'')}</span><span>Handler: ${esc(staffName(c.handlerId))}</span></div></div>
+  <div class="acts"><button class="btn sm" data-act="editComplaint" data-id="${c.id}">Open</button></div></div>`}
+function vComplaints(){
+  let C=Object.entries(S.complaints).map(([id,c])=>({id,...c})).filter(inClinic);const f=UI.cf;
+  const counts=Object.fromEntries(CSTAT.map(s=>[s[0],C.filter(c=>c.status===s[0]).length]));
+  if(f.status==='open')C=C.filter(c=>c.status==='new'||c.status==='investigating');else if(f.status!=='all')C=C.filter(c=>c.status===f.status);
+  C.sort((a,b)=>{const sw={critical:4,high:3,medium:2,low:1};return(sw[b.severity]-sw[a.severity])||a.createdAt.localeCompare(b.createdAt)});
+  return`<div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">${CSTAT.map(s=>`<div class="kpi"><span class="v">${counts[s[0]]}</span><span class="l">${s[1]}</span></div>`).join('')}</div>
+  <section class="panel"><div class="panel-head"><div class="seg" role="group" aria-label="Filter complaints">${[['open','Open'],['new','New'],['investigating','Investigating'],['resolved','Resolved'],['closed','Closed'],['all','All']].map(([k,l])=>`<button data-act="cf" data-v="${k}" aria-pressed="${f.status===k}">${l}</button>`).join('')}</div>
+   <button class="btn primary" data-act="newComplaint">Log complaint</button></div>
+   <div class="note">Resolution targets: Critical 4h · High 24h · Medium 48h · Low 72h. Customer Relations owns each complaint and can hand actions to any department.</div>
+   <div class="list">${C.map(complaintRow).join('')||'<div class="empty">No complaints here.</div>'}</div></section>`}
+
+function vEfficiency(){
+  if(!Object.keys(S.staff).length)return emptySetup();
+  const by=UI.effBy,days=UI.effDays,G=calc(days,by);
+  const keys=by==='dept'?DEPTS:staffArr().filter(inClinic).map(s=>s.id);
+  const rows=keys.map(k=>({k,x:G[k]||null})).sort((a,b)=>((b.x?.score??-1)-(a.x?.score??-1)));
+  return`<section class="panel"><div class="panel-head"><div class="seg" role="group" aria-label="Group by">${[['staff','By employee'],['dept','By department']].map(([k,l])=>`<button data-act="effBy" data-v="${k}" aria-pressed="${by===k}">${l}</button>`).join('')}</div>
+   <div class="seg" role="group" aria-label="Period">${[7,30,90].map(n=>`<button data-act="effDays" data-v="${n}" aria-pressed="${days===n}">${n} days</button>`).join('')}</div></div>
+   <div class="tbl-wrap"><table><thead><tr><th>${by==='dept'?'Department':'Employee'}</th><th class="n">Tasks</th><th class="n">Done</th><th class="n">On time</th><th class="n">Missed</th><th class="n">Avg hrs</th><th class="n">Reports</th><th>Score</th></tr></thead><tbody>
+   ${rows.map(({k,x})=>{const s=S.staff[k];const name=by==='dept'?esc(k):`<b>${esc(s.name)}</b><div class="mini">${esc(s.dept)} · ${esc(clinicName(s.clinicId))}</div>`;
+     return`<tr><td>${name}</td><td class="n">${x?x.assigned:0}</td><td class="n">${x?x.done:0}</td><td class="n">${pct(x?.onTimeRate)}</td><td class="n">${x?x.missed:0}</td><td class="n">${x?.avgHrs!=null?x.avgHrs.toFixed(1):'—'}</td><td class="n">${x&&x.expected?`${x.submitted}/${x.expected}`:'—'}</td><td>${scoreCell(x?.score??null)}</td></tr>`}).join('')}</tbody></table></div>
+   <div class="note"><b>How the score works.</b> Tasks count in the period by their original due date. <b>On time</b> means marked done before the first due time; a carried-over task never counts as on time. <b>Done</b> is the share completed at all. <b>Reports</b> is end-of-shift reports filed on working days (weekly day off excluded). Score = 50% on-time + 30% completion + 20% reports. 85+ Excellent, 70–84 Good, 50–69 Needs attention, below 50 Poor.</div></section>`}
+
+function vSetup(){
+  const C=clinicArr(),St=staffArr();const hasSample=COLS.some(c=>Object.values(S[c]).some(x=>x.sample));
+  return`<div class="grid2"><section class="panel"><div class="panel-head"><div><h2>Clinics</h2><p>${C.length} clinic${C.length===1?'':'s'}</p></div><button class="btn primary sm" data-act="clinicForm">Add clinic</button></div>
+   <div class="list">${C.map(c=>`<div class="row"><div></div><div><div class="t">${esc(c.name)}</div><div class="m"><span>${esc(c.area||'')}</span><span>Manager: ${esc(managerOf(c.id)?.name||'not set')}</span><span>${St.filter(s=>s.clinicId===c.id).length} staff</span></div></div><div class="acts"><button class="btn sm ghost" data-act="clinicForm" data-id="${c.id}">Edit</button></div></div>`).join('')||'<div class="mini">No clinics yet. Add one, or add “Head Office” as a location too.</div>'}</div></section>
+  <section class="panel"><div class="panel-head"><div><h2>Workspace</h2><p>Live database. Every change shows up for all signed-in staff.</p></div></div>
+   <div class="note">A clinic manager receives the daily reports for their clinic. Add each person below, then press <b>Create login</b> to give them a username and password. Staff see their own day, clinic managers review their clinic, and only the head office admin can verify work, give final approvals and manage logins.</div>
+   <div style="display:flex;gap:8px;flex-wrap:wrap">${!adminOK?'':hasSample?`<button class="btn danger" data-act="clearSample">Remove all sample data</button>`:`<button class="btn" data-act="loadSample">Load sample data</button>`}</div></section></div>
+  <section class="panel"><div class="panel-head"><div><h2>Staff</h2><p>${St.length} people across ${DEPTS.length} departments</p></div><button class="btn primary sm" data-act="staffForm">Add staff member</button></div>
+   <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Department</th><th>Clinic</th><th>Role</th><th>Shift ends</th><th>Day off</th><th>Login</th><th></th></tr></thead><tbody>
+   ${St.filter(inClinic).map(s=>`<tr><td><b>${esc(s.name)}</b>${s.active===false?' <span class="chip muted">Inactive</span>':''}</td><td>${esc(s.dept)}</td><td>${esc(clinicName(s.clinicId))}</td><td>${ROLEL[s.role]}</td><td class="mono">${esc(s.shiftEnd||'18:00')}</td><td>${s.dayOff===''||s.dayOff==null?'None':DAYS[+s.dayOff]}</td><td>${(()=>{const l=loginOf(s.id);if(!adminOK)return l?`<span class="mono">${esc(l.username)}</span>`:'<span class="mini">None</span>';return l?`<span class="mono">${esc(l.username)}</span> <button class="btn sm ghost" data-act="resetPw" data-id="${s.id}">Reset password</button>`:`<button class="btn sm" data-act="createLogin" data-id="${s.id}">Create login</button>`})()}</td><td><button class="btn sm ghost" data-act="staffForm" data-id="${s.id}">Edit</button></td></tr>`).join('')||'<tr><td colspan="8" class="mini">No staff yet.</td></tr>'}</tbody></table></div></section>`}
+
+/* ---------- admin review & approvals ---------- */
+const reqArr=()=>Object.entries(S.requests).map(([id,r])=>({id,...r}));
+const waiting=r=>r.status==='pending'||r.status==='recommended'||r.status==='not_recommended';
+function canAct(r){const role=myRole();if(role==='admin')return waiting(r);if(role==='manager')return r.status==='pending'&&r.clinicId===me()?.clinicId&&r.staffId!==me()?.id;return false}
+const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&&inClinic(t)).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
+const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>!r.adminVerified&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
+const aed=n=>n||n===0?'AED '+Number(n).toLocaleString('en-US'):'';
+const when=iso=>iso?new Date(iso).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+function requestRow(r){const[l,c]=RSTAT[r.status]||['',''];
+  return`<div class="row"><div class="pbar ${waiting(r)?'high':r.status==='approved'?'low':'urgent'}"></div><div style="min-width:0"><div class="t">${esc(r.title)}${r.amount?` <span class="mono" style="font-weight:500">· ${esc(aed(r.amount))}</span>`:''}</div>
+  <div class="m"><span class="chip ${c}">${l}</span><span>${esc(r.type)}</span><span>${esc(staffName(r.staffId))} · ${esc(r.dept||'')}</span><span>${esc(clinicName(r.clinicId))}</span>${r.neededBy?`<span>Needed by ${esc(fmtDate(r.neededBy))}</span>`:''}<span>Raised ${ago(r.createdAt)} ago</span></div>
+  ${r.mgrNote||r.adminNote?`<div class="m">${r.mgrNote?`<span>Manager: ${esc(r.mgrNote)}</span>`:''}${r.adminNote?`<span>Admin: ${esc(r.adminNote)}</span>`:''}</div>`:''}</div>
+  <div class="acts">${canAct(r)?`<button class="btn sm primary" data-act="decide" data-id="${r.id}">Decide</button>`:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`}</div></div>`}
+function vRequests(){
+  const role=myRole(),m=me();let R=reqArr().filter(inClinic);if(role==='staff')R=R.filter(r=>r.staffId===m?.id);
+  const f=UI.rf||'waiting';const cnt={waiting:R.filter(waiting).length,mine:R.filter(canAct).length};
+  if(f==='waiting')R=R.filter(waiting);else if(f==='mine')R=R.filter(canAct);else if(f!=='all')R=R.filter(r=>r.status===f);
+  R.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
+  const segs=[...(role!=='staff'?[['mine',`Needs my decision (${cnt.mine})`]]:[]),['waiting',`Waiting (${cnt.waiting})`],['approved','Approved'],['rejected','Rejected'],['all','All']];
+  return`<section class="panel"><div class="panel-head"><div class="seg" role="group" aria-label="Filter approvals">${segs.map(([k,l])=>`<button data-act="rf" data-v="${k}" aria-pressed="${f===k}">${l}</button>`).join('')}</div>
+  ${m&&m.name?`<button class="btn primary" data-act="newRequest">Request approval</button>`:''}</div>
+  <div class="note">Staff raise a request. Their clinic manager recommends it or not, then the head office admin gives the final approval.</div>
+  <div class="list">${R.map(requestRow).join('')||'<div class="empty">No requests here.</div>'}</div></section>`}
+function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “Using as” first.');return}
+  modal('Request approval',F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
+   F('What needs approval',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`<input type="date" name="neededBy">`),
+   fd=>{const byMgr=m.role!=='staff';put('requests',uid(),{...fd,amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:byMgr?'recommended':'pending',mgrNote:byMgr?'Raised by clinic manager':'',createdAt:new Date().toISOString()});toast(byMgr?'Sent to head office admin':'Sent to your clinic manager')},{label:'Send request'})}
+function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
+  const btns=role==='admin'?`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn primary" type="submit" value="yes">Approve</button>`:`<button class="btn danger" type="submit" value="no">Not recommended</button><button class="btn primary" type="submit" value="yes">Recommend</button>`;
+  modal(r.title,`<dl class="kv full">${kv('Status',(RSTAT[r.status]||[''])[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',r.neededBy)}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Manager',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Admin',r.adminNote?`${r.adminBy?r.adminBy+': ':''}${r.adminNote}`:'')}</dl>`+
+   (act?F(role==='admin'?'Admin comment':'Manager recommendation',`<textarea name="note"></textarea>`,1):''),
+   act?(fd,choice)=>{if(!choice)return false;const by=me()?.name||'Head office admin',at=new Date().toISOString();
+     if(role==='admin')put('requests',id,{...r,status:choice==='yes'?'approved':'rejected',adminNote:fd.note,adminBy:by,decidedAt:at});
+     else put('requests',id,{...r,status:choice==='yes'?'recommended':'not_recommended',mgrNote:fd.note,mgrBy:by,mgrAt:at});
+     toast(role==='admin'?(choice==='yes'?'Approved':'Rejected'):'Sent to head office admin')}:null,{buttons:btns,noFocus:1})}
+function returnForm(id){const t=S.tasks[id];
+  modal('Return task with a recommendation',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. It goes back on their list as To do with your note.</div>`+
+   F('What needs to be done',`<textarea name="note" required placeholder="e.g. Attach the signed approval letter before closing"></textarea>`,1)+F('New due date',`<input type="date" name="due" value="${today()}">`),
+   fd=>{const by=me()?.name||'Head office admin';const n={...t,status:'todo',verify:'returned',recommendation:fd.note,returnedCount:(t.returnedCount||0)+1,dueDate:fd.due||today(),
+     history:[...(t.history||[]),{at:new Date().toISOString(),by,what:'Returned: '+fd.note}].slice(-20)};delete n.completedAt;delete n.completedLocal;put('tasks',id,n);toast('Returned to '+staffName(t.assigneeId))},{label:'Return task'})}
+function activity(who,days){const since=addDays(today(),-days),E=[];
+  taskArr().forEach(t=>{if(!inClinic(t)||(who&&t.assigneeId!==who))return;if(t.completedAt&&(t.completedLocal||'')>=since)E.push({at:t.completedAt,who:t.assigneeId,kind:'Task completed',k:'s-done',text:t.title,extra:t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>',act:t.verify!=='verified'&&myRole()==='admin'?`<button class="btn sm" data-act="verifyTask" data-id="${t.id}">Verify</button>`:''})});
+  Object.entries(S.reports).forEach(([id,r])=>{if(!inClinic(r)||(who&&r.staffId!==who)||r.date<since)return;E.push({at:r.submittedAt,who:r.staffId,kind:'Daily report',k:'s-progress',text:r.summary,extra:r.adminVerified?'<span class="chip ok">Verified</span>':r.late?'<span class="chip warnc">Late</span>':'',act:`<button class="btn sm" data-act="viewReport" data-id="${id}">Open</button>`})});
+  reqArr().forEach(r=>{if(!inClinic(r)||(who&&r.staffId!==who)||(r.createdAt||'').slice(0,10)<since)return;E.push({at:r.createdAt,who:r.staffId,kind:'Approval request',k:'goldc',text:r.title+(r.amount?' · '+aed(r.amount):''),extra:`<span class="chip ${RSTAT[r.status][1]}">${RSTAT[r.status][0]}</span>`,act:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`})});
+  Object.entries(S.complaints).forEach(([id,c])=>{if(!inClinic(c)||(who&&c.handlerId!==who)||(c.createdAt||'').slice(0,10)<since)return;E.push({at:c.createdAt,who:c.handlerId,kind:'Complaint',k:'bad',text:`${c.patient} · ${c.category}`,extra:`<span class="chip muted">${CSTATL[c.status]}</span>`,act:`<button class="btn sm" data-act="editComplaint" data-id="${id}">Open</button>`})});
+  return E.sort((a,b)=>(b.at||'').localeCompare(a.at||''))}
+function vAdmin(){
+  if(!Object.keys(S.staff).length)return emptySetup();
+  const W=reqArr().filter(inClinic).filter(canAct).sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')),V=toVerify(),RV=reportsToVerify();
+  const openC=Object.values(S.complaints).filter(c=>inClinic(c)&&(c.status==='new'||c.status==='investigating')).length;
+  const who=UI.actWho||'',days=UI.actDays||7,E=activity(who,days);
+  return`<div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+   <div class="kpi ${W.length?'warn':''}"><span class="v">${W.length}</span><span class="l">Approvals waiting for you</span></div>
+   <div class="kpi"><span class="v">${V.length}</span><span class="l">Completed tasks to verify</span></div>
+   <div class="kpi"><span class="v">${RV.length}</span><span class="l">Daily reports to verify (14 days)</span></div>
+   <div class="kpi"><span class="v">${openC}</span><span class="l">Open patient complaints</span></div></div>
+  <div class="grid2">
+   <section class="panel"><div class="panel-head"><div><h2>Approvals waiting for you</h2><p>Oldest first, with the clinic manager's recommendation.</p></div><button class="btn sm" data-act="nav" data-v="requests">All approvals</button></div>
+    <div class="list">${W.slice(0,8).map(requestRow).join('')||'<div class="mini">Nothing waiting for your approval.</div>'}</div></section>
+   <section class="panel"><div class="panel-head"><div><h2>Daily reports to verify</h2><p>Open a report to verify it and add a recommendation.</p></div></div>
+    <div class="list">${RV.slice(0,8).map(r=>`<div class="row"><div></div><div style="min-width:0"><div class="t">${esc(staffName(r.staffId))} · ${esc(fmtDate(r.date))}</div><div class="m"><span>${esc(r.dept||'')}</span><span>${esc(clinicName(r.clinicId))}</span><span class="chip ${r.late?'warnc':'ok'}">${r.late?'Late':'On time'}</span>${r.reviewed?'<span class="chip s-progress">Manager reviewed</span>':'<span class="chip muted">Manager not reviewed</span>'}</div></div><div class="acts"><button class="btn sm primary" data-act="viewReport" data-id="${r.id}">Open</button></div></div>`).join('')||'<div class="mini">All recent reports are verified.</div>'}
+    ${RV.length>8?`<div class="mini">${RV.length-8} more in Daily reports.</div>`:''}</div></section></div>
+  <section class="panel"><div class="panel-head"><div><h2>Completed duties to verify</h2><p>Verify the work, or return it with a recommendation so it goes back on that person's list.</p></div>${V.length?`<button class="btn sm" data-act="verifyAll">Verify all ${V.length}</button>`:''}</div>
+   <div class="list">${V.slice(0,15).map(t=>taskRow(t,{verify:1})).join('')||'<div class="mini">No completed tasks waiting for verification.</div>'}</div>${V.length>15?`<div class="mini">Showing 15 of ${V.length}, newest first.</div>`:''}</section>
+  <section class="panel"><div class="panel-head"><div><h2>All staff entries</h2><p>Every task completed, report filed, approval raised and complaint handled.</p></div>
+   <div class="filters"><label class="f">Staff member<select data-change="actWho">${opts(staffArr().filter(inClinic).map(s=>[s.id,`${s.name} · ${s.dept}`]),who,'Everyone')}</select></label>
+   <label class="f">Period<select data-change="actDays">${opts([['1','Today'],['7','Last 7 days'],['30','Last 30 days']],String(days))}</select></label></div></div>
+   <div class="tbl-wrap"><table><thead><tr><th>When</th><th>Staff</th><th>Entry</th><th>Details</th><th></th></tr></thead><tbody>
+   ${E.slice(0,150).map(e=>`<tr><td class="mono" style="white-space:nowrap">${esc(when(e.at))}</td><td>${esc(staffName(e.who))}</td><td><span class="chip ${e.k}">${e.kind}</span></td><td style="min-width:220px">${esc(e.text)} ${e.extra}</td><td>${e.act}</td></tr>`).join('')||'<tr><td colspan="5" class="mini">No entries in this period.</td></tr>'}</tbody></table></div>
+   ${E.length>150?`<div class="mini">Showing the latest 150 of ${E.length}. Pick a staff member or shorter period to narrow it.</div>`:''}</section>`}
+
+/* ---------- staff logins ---------- */
+function suggestPw(){const c='abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';let p='';const a=new Uint32Array(10);crypto.getRandomValues(a);a.forEach(n=>p+=c[n%c.length]);return p}
+function loginForm(sid,reset){const st=S.staff[sid];if(!st)return;const l=loginOf(sid);
+  const base=(st.name||'').toLowerCase().replace(/\(sample\)/,'').trim().split(/\s+/).join('.').replace(/[^a-z0-9._-]/g,'').slice(0,30)||'staff';
+  modal(reset?`Reset password · ${st.name}`:`Create login · ${st.name}`,
+   (reset?`<div class="full note">Username: <b class="mono">${esc(l?.username||'')}</b></div>`:F('Username',`<input name="username" required value="${esc(base)}" autocapitalize="none">`))+
+   F(reset?'New password':'Password',`<input name="password" required value="${suggestPw()}" class="mono">`)+
+   `<div class="full note">Give ${esc(st.name)} this username and password. They sign in at this website from any phone or computer.${reset?'':' Their access follows their role: '+esc(ROLEL[st.role]||'Staff')+'.'}</div>`,
+   fd=>{const btn=dlgForm.querySelector('button[type=submit]');btn.disabled=true;
+     callFn(reset?{action:'reset',staff_id:sid,password:fd.password}:{action:'create',staff_id:sid,username:fd.username,password:fd.password})
+      .then(r=>{dlg.close();toast(reset?'Password changed':'Login created: '+r.username);return loadProfiles().then(schedule)})
+      .catch(e=>{toast(e.message);btn.disabled=false});return false},
+   {label:reset?'Set new password':'Create login',left:reset?`<button type="button" class="btn danger" data-act="removeLogin" data-id="${sid}">Remove login</button>`:''})}
+function ownPwForm(){modal('Change your password',F('New password (8+ characters)',`<input type="password" name="password" required autocomplete="new-password">`,1),
+  fd=>{callFn({action:'change_own',password:fd.password}).then(()=>{dlg.close();toast('Password changed')}).catch(e=>toast(e.message));return false},{label:'Change password'})}
+
+/* ---------- modal ---------- */
+const dlg=document.getElementById('dlg'),dlgForm=document.getElementById('dlgForm');let onSubmit=null;
+function modal(title,body,submit,o={}){
+  dlgForm.innerHTML=`<div class="dlg-head"><h2>${esc(title)}</h2><button type="button" class="btn sm ghost" data-act="closeDlg" aria-label="Close">✕</button></div><div class="dlg-body">${body}</div>
+  <div class="dlg-foot">${o.left||''}<span style="flex:1"></span><button type="button" class="btn" data-act="closeDlg">${submit?'Cancel':'Close'}</button>${submit?(o.buttons||`<button class="btn primary" type="submit">${esc(o.label||'Save')}</button>`):''}</div>`;
+  onSubmit=submit;if(!dlg.open)dlg.showModal();const first=dlgForm.querySelector('.dlg-body input,.dlg-body select,.dlg-body textarea');if(first&&!o.noFocus)first.focus()}
+dlgForm.addEventListener('submit',e=>{e.preventDefault();if(!onSubmit)return;
+  for(const el of dlgForm.querySelectorAll('[required]'))if(!String(el.value).trim()){el.focus();toast('Fill in '+(el.closest('label')?.firstChild?.textContent||'the required field').trim()+'.');return}
+  const fd=Object.fromEntries(new FormData(dlgForm));if(onSubmit(fd,e.submitter&&e.submitter.value)!==false)dlg.close()});
+const F=(label,inner,full)=>`<label class="f${full?' full':''}">${label}${inner}</label>`;
+
+function taskForm(id,self){
+  const t=id?S.tasks[id]:{priority:'normal',status:'todo',dueDate:today(),dueTime:'',recurrence:'none',clinicId:self?me().clinicId:(UI.clinic||''),dept:self?me().dept:'',assigneeId:self?me().id:''};
+  const hist=(t.history||[]).slice().reverse().slice(0,6);
+  modal(id?'Edit task':'New task',
+   F('Task',`<input name="title" required value="${esc(t.title||'')}" placeholder="e.g. Submit insurance claims batch for Daman">`,1)+
+   F('Assign to',`<select name="assigneeId" id="f-assignee" required>${opts(staffArr().filter(s=>s.active!==false).map(s=>[s.id,`${s.name} · ${s.dept} · ${clinicName(s.clinicId)}`]),t.assigneeId,'Choose a person')}</select>`,1)+
+   F('Department',`<select name="dept" id="f-dept" required>${opts(DEPTS,t.dept,'Choose')}</select>`)+
+   F('Clinic',`<select name="clinicId" id="f-clinic" required>${opts(clinicArr().map(c=>[c.id,c.name]),t.clinicId,'Choose')}</select>`)+
+   F('Priority',`<select name="priority">${opts(PRI.map(p=>[p[0],p[1]]),t.priority)}</select>`)+
+   F('Status',`<select name="status">${opts(STATUS,t.status)}</select>`)+
+   F('Due date',`<input type="date" name="dueDate" required value="${esc(t.dueDate||'')}">`)+
+   F('Due time (optional)',`<input type="time" name="dueTime" value="${esc(t.dueTime||'')}">`)+
+   F('Repeats',`<select name="recurrence">${opts(REC,t.recurrence||'none')}</select>`)+
+   `<div class="mini" style="align-self:end">Repeating tasks create the next one when marked done.</div>`+
+   F('Notes / instructions',`<textarea name="notes">${esc(t.notes||'')}</textarea>`,1)+
+   (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(new Date(h.at).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</li>`).join('')}</ul></div>`:''),
+   fd=>{const base=id?{...t}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'Head office',carryCount:0,history:[]};
+     const wasDone=base.status==='done';const n={...base,...fd};
+     if(id&&base.dueDate!==fd.dueDate&&!base.originalDue&&base.dueDate<today())n.originalDue=base.dueDate;
+     if(id){n.history=[...(base.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office',what:'Edited'}].slice(-20)}
+     const tid=id||uid();
+     if(fd.status==='done'&&!wasDone){n.status=base.status||'todo';put('tasks',tid,n);setStatus({id:tid,...S.tasks[tid]},'done')}
+     else{if(fd.status!=='done'){delete n.completedAt;delete n.completedLocal}put('tasks',tid,n)}
+     toast(id?'Task updated':'Task assigned to '+staffName(fd.assigneeId))},
+   {left:id&&myRole()!=='staff'?`<button type="button" class="btn danger" data-act="delTask" data-id="${id}">Delete</button>`:'',label:id?'Save':'Assign task'});
+  document.getElementById('f-assignee').addEventListener('change',e=>{const s=S.staff[e.target.value];if(!s)return;document.getElementById('f-dept').value=s.dept;document.getElementById('f-clinic').value=s.clinicId})}
+
+function reportForm(){
+  const m=me(),td=today(),id=td+'_'+m.id,r=S.reports[id];
+  const mine=taskArr().filter(t=>t.assigneeId===m.id);
+  const done=mine.filter(t=>t.status==='done'&&(t.completedLocal||'').startsWith(td));
+  const pending=mine.filter(t=>isOpen(t)&&t.dueDate<=td).sort(taskSort);
+  const mgr=managerOf(m.clinicId);const ro=!!r?.reviewed;
+  modal(`End-of-shift report · ${fmtDate(td)}`,
+   `<div class="full note">To <b>${esc(mgr?.name||'Clinic manager')}</b> · ${esc(clinicName(m.clinicId))}. Your task list is attached automatically.</div>
+   <div><div class="eyebrow">Completed today (${done.length})</div><ul class="checklist">${done.map(t=>`<li>${esc(t.title)}</li>`).join('')||'<li class="mini">None marked done</li>'}</ul></div>
+   <div><div class="eyebrow">Still pending (${pending.length})</div><ul class="checklist">${pending.map(t=>`<li>${esc(t.title)}${isMissed(t)?' <span class="missed-tag">missed</span>':''}</li>`).join('')||'<li class="mini">Nothing pending</li>'}</ul></div>`+
+   F('Summary of work done today',`<textarea name="summary" required ${ro?'readonly':''}>${esc(r?.summary||'')}</textarea>`,1)+
+   F('Extra work done that was not on the list',`<textarea name="extra" ${ro?'readonly':''} placeholder="Walk-in requests, urgent calls, cover for a colleague…">${esc(r?.extra||'')}</textarea>`,1)+
+   F('Why pending items were not finished',`<textarea name="pendingReason" ${ro?'readonly':''}>${esc(r?.pendingReason||'')}</textarea>`,1)+
+   F('Issues or help needed',`<textarea name="issues" ${ro?'readonly':''}>${esc(r?.issues||'')}</textarea>`,1)+
+   F('Plan for tomorrow',`<textarea name="tomorrow" ${ro?'readonly':''}>${esc(r?.tomorrow||'')}</textarea>`,1)+
+   F('Patients / cases handled',`<input type="number" min="0" name="cases" value="${esc(r?.cases??'')}" ${ro?'readonly':''}>`)+
+   F('Hours worked',`<input type="number" min="0" max="24" step="0.5" name="hours" value="${esc(r?.hours??'')}" ${ro?'readonly':''}>`)+
+   (r?.reviewed?`<div class="full note"><b>Reviewed by ${esc(r.reviewedBy)}</b>${r.reviewNote?': '+esc(r.reviewNote):''}</div>`:''),
+   ro?null:fd=>{const d=dubai();put('reports',id,{...(r||{}),...fd,cases:fd.cases===''?null:+fd.cases,hours:fd.hours===''?null:+fd.hours,date:td,staffId:m.id,clinicId:m.clinicId,dept:m.dept,
+     completedIds:done.map(t=>t.id),completedTitles:done.map(t=>t.title),pendingIds:pending.map(t=>t.id),pendingTitles:pending.map(t=>t.title),
+     submittedAt:new Date().toISOString(),submittedLocal:d.date+'T'+d.time,late:d.time>(m.shiftEnd||'18:00'),createdAt:r?.createdAt||new Date().toISOString(),reviewed:false});toast('Report sent to '+(mgr?.name||'clinic manager'))},
+   {label:r?'Update report':'Submit report'})}
+
+function viewReport(id){
+  const r=S.reports[id];if(!r)return;const s=S.staff[r.staffId]||{name:'Former staff'};const role=myRole(),canReview=role==='manager'||role==='admin',isAdm=role==='admin';
+  const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
+  modal(`${s.name} · ${fmtDate(r.date)}`,
+   `<dl class="kv full">${kv('Department',r.dept)}${kv('Clinic',clinicName(r.clinicId))}${kv('Submitted',r.submittedLocal.replace('T',' ')+(r.late?' (after shift end)':''))}${kv('Summary',r.summary)}${kv('Extra work',r.extra)}${kv('Pending because',r.pendingReason)}${kv('Issues',r.issues)}${kv('Tomorrow',r.tomorrow)}${kv('Cases handled',r.cases)}${kv('Hours',r.hours)}${r.reviewed?kv('Manager review',(r.reviewedBy||'')+(r.reviewNote?': '+r.reviewNote:'')):''}${r.adminVerified?kv('Admin verified',(r.adminBy||'')+(r.adminNote?': '+r.adminNote:'')):''}</dl>
+   <div><div class="eyebrow">Completed (${r.completedTitles.length})</div><ul class="checklist">${r.completedTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>
+   <div><div class="eyebrow">Pending (${r.pendingTitles.length})</div><ul class="checklist">${r.pendingTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>`+
+   (isAdm?F('Admin recommendation / comment',`<textarea name="note">${esc(r.adminNote||'')}</textarea>`,1):canReview?F('Manager comment',`<textarea name="note">${esc(r.reviewNote||'')}</textarea>`,1):(r.reviewNote?`<div class="full note">${esc(r.reviewNote)}</div>`:'')),
+   canReview?fd=>{const by=me()?.name||'Head office admin',at=new Date().toISOString();
+     if(isAdm)put('reports',id,{...r,reviewed:true,reviewedBy:r.reviewedBy||by,reviewedAt:r.reviewedAt||at,adminVerified:true,adminNote:fd.note,adminBy:by,adminAt:at});
+     else put('reports',id,{...r,reviewed:true,reviewNote:fd.note,reviewedBy:by,reviewedAt:at});toast(isAdm?'Report verified':'Marked as reviewed')}:null,
+   {label:isAdm?(r.adminVerified?'Update verification':'Verify report'):r.reviewed?'Update review':'Mark reviewed',noFocus:1})}
+
+function complaintForm(id){
+  const c=id?S.complaints[id]:{severity:'medium',status:'new',category:CCATS[0],channel:CHANNELS[0],clinicId:UI.clinic||me()?.clinicId||'',dept:'',handlerId:staffArr().find(s=>s.dept==='Customer Relations'&&(!UI.clinic||s.clinicId===UI.clinic))?.id||''};
+  modal(id?'Complaint':'Log patient complaint',
+   F('Patient name',`<input name="patient" required value="${esc(c.patient||'')}">`)+F('File / MRN no.',`<input name="fileNo" value="${esc(c.fileNo||'')}">`)+
+   F('Contact number',`<input name="phone" inputmode="tel" value="${esc(c.phone||'')}" placeholder="+971 5x xxx xxxx">`)+F('Received via',`<select name="channel">${opts(CHANNELS,c.channel)}</select>`)+
+   F('Clinic',`<select name="clinicId" required>${opts(clinicArr().map(x=>[x.id,x.name]),c.clinicId,'Choose')}</select>`)+F('Department involved',`<select name="dept">${opts(DEPTS,c.dept,'Not sure yet')}</select>`)+
+   F('Category',`<select name="category">${opts(CCATS,c.category)}</select>`)+F('Severity',`<select name="severity">${opts(SEV.map(s=>[s[0],`${s[1]} · resolve in ${s[2]}h`]),c.severity)}</select>`)+
+   F('What happened',`<textarea name="description" required>${esc(c.description||'')}</textarea>`,1)+
+   F('Handled by (Customer Relations)',`<select name="handlerId">${opts(staffArr().map(s=>[s.id,`${s.name} · ${s.dept}`]),c.handlerId,'Unassigned')}</select>`)+F('Status',`<select name="status">${opts(CSTAT,c.status)}</select>`)+
+   F('Action taken / resolution',`<textarea name="resolution">${esc(c.resolution||'')}</textarea>`,1)+
+   F('Patient informed of outcome?',`<select name="informed">${opts([['no','Not yet'],['yes','Yes']],c.informed||'no')}</select>`)+
+   (id?`<div class="mini" style="align-self:end">Logged ${esc(new Date(c.createdAt).toLocaleString('en-GB',{timeZone:TZ}))} by ${esc(c.createdBy||'—')}</div>`:''),
+   fd=>{const base=id?{...c}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'Head office'};const n={...base,...fd};
+     if((fd.status==='resolved'||fd.status==='closed')&&!base.resolvedAt)n.resolvedAt=new Date().toISOString();
+     if(fd.status==='new'||fd.status==='investigating')delete n.resolvedAt;
+     put('complaints',id||uid(),n);toast(id?'Complaint updated':'Complaint logged')},
+   {left:id&&myRole()!=='staff'?`<button type="button" class="btn danger" data-act="delComplaint" data-id="${id}">Delete</button>`:'',label:id?'Save':'Log complaint'})}
+
+function clinicForm(id){const c=id?S.clinics[id]:{};
+  modal(id?'Edit clinic':'Add clinic',F('Clinic name',`<input name="name" required value="${esc(c.name||'')}" placeholder="e.g. Jumeirah Branch">`)+F('Area',`<input name="area" value="${esc(c.area||'')}" placeholder="e.g. Jumeirah 1, Dubai">`),
+   fd=>{put('clinics',id||uid(),{...c,...fd,createdAt:c.createdAt||new Date().toISOString()});toast(id?'Clinic updated':'Clinic added')},
+   {left:id?`<button type="button" class="btn danger" data-act="delClinic" data-id="${id}">Delete</button>`:''})}
+function staffForm(id){const s=id?S.staff[id]:{role:'staff',shiftEnd:'18:00',dayOff:'0',clinicId:UI.clinic||'',active:true};
+  modal(id?'Edit staff member':'Add staff member',F('Full name',`<input name="name" required value="${esc(s.name||'')}">`)+F('Department',`<select name="dept" required>${opts(DEPTS,s.dept,'Choose')}</select>`)+
+   F('Clinic',`<select name="clinicId" required>${opts(clinicArr().map(c=>[c.id,c.name]),s.clinicId,'Choose')}</select>`)+F('Access',`<select name="role">${opts(adminOK?ROLES:ROLES.filter(r=>r[0]!=='admin'),s.role)}</select>`)+
+   F('Shift ends at',`<input type="time" name="shiftEnd" value="${esc(s.shiftEnd||'18:00')}">`)+F('Weekly day off',`<select name="dayOff">${opts([['','None (rotating)'],...DAYS.map((d,i)=>[String(i),d])],s.dayOff==null?'':String(s.dayOff))}</select>`)+
+   F('Status',`<select name="active">${opts([['yes','Active'],['no','Inactive (left / on leave)']],s.active===false?'no':'yes')}</select>`),
+   fd=>{if(!clinicArr().length){toast('Add a clinic first.');return false}put('staff',id||uid(),{...s,...fd,active:fd.active!=='no',startDate:s.startDate||today(),createdAt:s.createdAt||new Date().toISOString()});toast(id?'Saved':'Staff member added')},
+   {left:id?`<button type="button" class="btn danger" data-act="delStaff" data-id="${id}">Delete</button>`:''})}
+
+/* ---------- sample data ---------- */
+async function loadSample(){
+  const td=today(),now=Date.now();const ids={};const W=[];const P=(c,id,o)=>W.push([c,id,{...o,sample:true}]);
+  [['c1','Jumeirah Clinic (sample)','Jumeirah 1'],['c2','Al Barsha Clinic (sample)','Al Barsha 1'],['c3','Dubai Marina Clinic (sample)','Dubai Marina']].forEach(([k,n,a])=>{ids[k]=uid()+k;P('clinics',ids[k],{name:n,area:a,createdAt:new Date().toISOString()})});
+  const people=[['Mariam (sample)','Clinic Manager','c1','manager','19:00','5'],['Rahul (sample)','Operations','c1','admin','18:00','5'],['Fatima (sample)','HR','c1','staff','17:00','5'],['Joseph (sample)','Accounts','c1','staff','17:00','5'],['Noura (sample)','Marketing','c1','staff','18:00','6'],['Priya (sample)','Insurance','c1','staff','18:00','0'],['Layla (sample)','Aesthetic Coordinator','c1','staff','21:00','2'],['Omar (sample)','Dental Coordinator','c2','staff','21:00','3'],['Grace (sample)','Reception Desk Supervisor','c2','staff','22:00','1'],['Hessa (sample)','Customer Relations','c1','staff','18:00','5'],['Ahmed (sample)','Clinic Manager','c2','manager','19:00','5'],['Sana (sample)','Insurance','c2','staff','18:00','6'],['Khalid (sample)','Clinic Manager','c3','manager','19:00','5'],['Anjali (sample)','Reception Desk Supervisor','c3','staff','22:00','4']];
+  const sid={};people.forEach(([n,d,c,r,e,o],i)=>{sid[i]=uid()+'s'+i;P('staff',sid[i],{createdAt:new Date().toISOString(),name:n,dept:d,clinicId:ids[c],role:r,shiftEnd:e,dayOff:o,active:true,startDate:addDays(td,-40)})});
+  const T=[[5,'Submit pending Daman pre-approvals','urgent',0,'',''],[5,'Reconcile NextCare rejected claims for September','high',-2,'',''],[11,'Follow up ENBD claim resubmissions','normal',1,'',''],[3,'Close daily cash & card settlement','high',0,'17:00','daily'],[3,'Prepare VAT working for Q3','normal',-3,'',''],[2,'Renew DHA licence for two hygienists','urgent',-1,'',''],[2,'Collect timesheets for payroll','normal',2,'',''],[4,'Post Botox offer creatives on Instagram','normal',0,'15:00',''],[4,'Reply to new Google reviews','low',0,'','daily'],[6,'Call back aesthetic consultation leads','high',0,'14:00',''],[6,'Restock filler inventory report','normal',-1,'',''],[7,'Confirm tomorrow\'s implant cases with lab','high',0,'16:00','daily'],[7,'Chase lab for crown delivery delay','urgent',-2,'',''],[8,'Front desk opening checklist','normal',0,'09:00','daily'],[8,'Update no-show list and rebook','normal',-1,'',''],[9,'Call patient about billing complaint','urgent',0,'12:00',''],[1,'Check AC maintenance schedule for all clinics','normal',1,'',''],[1,'Monthly fire safety inspection log','high',-4,'',''],[0,'Weekly staff huddle notes','normal',2,'','weekly'],[10,'Review Al Barsha insurance rejection rate','high',0,'',''],[12,'Marina reception rota for next week','normal',1,'',''],[13,'Reception phone answering audit','normal',-1,'','']];
+  T.forEach(([p,title,pri,off,tm,rec])=>{const s=people[p];P('tasks',uid()+'t',{title,notes:'',clinicId:ids[s[2]],dept:s[1],assigneeId:sid[p],priority:pri,dueDate:addDays(td,off),dueTime:tm,recurrence:rec||'none',status:'todo',createdAt:new Date(now-864e5*(Math.abs(off)+1)).toISOString(),createdBy:'Head office',carryCount:0,history:[]})});
+  // completed history over the last 3 weeks
+  for(let d=1;d<=20;d++){const date=addDays(td,-d);[3,5,7,8,4,6,2].forEach((p,j)=>{if((d+j)%4===0)return;const s=people[p];const late=(d*7+j)%5===0;
+    P('tasks',uid()+'h',{title:['Daily settlement','Claims batch','Lab confirmations','Opening checklist','Social post','Lead call-backs','Attendance check'][j],clinicId:ids[s[2]],dept:s[1],assigneeId:sid[p],priority:j%3===0?'high':'normal',dueDate:date,dueTime:'17:00',recurrence:'none',status:'done',createdAt:new Date(now-864e5*(d+1)).toISOString(),completedAt:new Date(now-864e5*d).toISOString(),completedLocal:(late?addDays(date,1):date)+'T'+(late?'10:00':'15:30'),carryCount:late?1:0,originalDue:late?date:undefined,history:[],verify:'verified',verifiedBy:'Head office admin'})});
+    [3,5,7,8,4].forEach((p,j)=>{if((d+j)%6===0)return;const s=people[p];const date=addDays(td,-d);P('reports',date+'_'+sid[p],{date,staffId:sid[p],clinicId:ids[s[2]],dept:s[1],summary:'Completed assigned work for the day.',extra:'',pendingReason:'',issues:'',tomorrow:'',cases:null,hours:8,completedIds:[],completedTitles:['Assigned daily work'],pendingIds:[],pendingTitles:[],submittedAt:new Date(now-864e5*d).toISOString(),submittedLocal:date+'T'+(j===2?'21:40':'16:55'),late:j===2,reviewed:d>2,reviewedBy:'Mariam (sample)',adminVerified:d>4,adminBy:'Head office admin',createdAt:new Date(now-864e5*d).toISOString()})})}
+  [[0,'Waiting time','high','new','c1',7,5,'Waited 75 minutes past appointment time for aesthetic consultation.',30],[1,'Billing / pricing','medium','investigating','c2',8,9,'Charged for X-ray that patient says was included in package.',20],[2,'Insurance / claim','high','new','c1',5,9,'Claim rejected, patient asked to pay full amount at reception.',3],[3,'Staff behaviour','low','resolved','c3',13,9,'Felt rushed at front desk during check-in.',90]].forEach(([i,cat,sev,st,c,dp,h,desc,hrs])=>{
+    P('complaints',uid()+'c',{patient:['Patient A (sample)','Patient B (sample)','Patient C (sample)','Patient D (sample)'][i],fileNo:String(10230+i),phone:'',channel:CHANNELS[i],clinicId:ids[c],dept:people[dp][1],category:cat,severity:sev,status:st,description:desc,handlerId:sid[h],resolution:st==='resolved'?'Apologised, coaching given to reception team.':'',informed:st==='resolved'?'yes':'no',createdAt:new Date(now-hrs*36e5).toISOString(),createdBy:'Hessa (sample)'})});
+  [[2,'Leave','Annual leave 14–18 Nov','Family travel. Joseph will cover payroll queries.',null,'recommended','Cover arranged, recommended.',20,12],[6,'Purchase / expense','Restock dermal filler (10 syringes)','Stock will run out next week based on bookings.',1850,'pending','',1,4],[9,'Patient discount / refund','Refund for cancelled whitening session','Patient B complaint, session cancelled by clinic.',600,'pending','',0,2],[8,'Overtime','Weekend overtime for reception (2 staff)','Eid rush, extra walk-ins expected.',null,'approved','Recommended.',3,50]].forEach(([p,type,title,details,amount,st,mn,nb,hrs])=>{const s=people[p];
+    P('requests',uid()+'r',{type,title,details,amount,neededBy:addDays(td,nb),staffId:sid[p],clinicId:ids[s[2]],dept:s[1],status:st,mgrNote:mn,mgrBy:mn?'Mariam (sample)':'',adminNote:st==='approved'?'Approved for this weekend only.':'',adminBy:st==='approved'?'Head office admin':'',createdAt:new Date(now-hrs*36e5).toISOString()})});
+  toast('Loading sample data…');for(let i=0;i<W.length;i+=8){await Promise.all(W.slice(i,i+8).map(([c,id,o])=>put(c,id,o)))}
+  UI.actingAs='';UI.clinic='';saveUI();toast('Sample data loaded. Use “View as” to see a staff view.')}
+async function clearSample(){const W=[];COLS.forEach(c=>Object.entries(S[c]).forEach(([id,x])=>{if(x.sample)W.push([c,id])}));
+  if(UI.actingAs&&S.staff[UI.actingAs]?.sample){UI.actingAs='';saveUI()}if(S.clinics[UI.clinic]?.sample){UI.clinic='';saveUI()}
+  toast('Removing sample data…');for(let i=0;i<W.length;i+=8){await Promise.all(W.slice(i,i+8).map(([c,id])=>del(c,id)))}toast('Sample data removed')}
+
+/* ---------- events ---------- */
+const pendingDel={};
+function confirmBtn(b,fn){const k=b.dataset.act+b.dataset.id;if(pendingDel[k]){delete pendingDel[k];fn();return}pendingDel[k]=1;b.textContent='Click again to confirm';setTimeout(()=>{delete pendingDel[k];if(b.isConnected)b.textContent='Delete'},3500)}
+const ACT={
+  nav:d=>{UI.view=d.v;saveUI();render();window.scrollTo(0,0)},
+  closeDlg:()=>dlg.close(),
+  newTask:d=>{if(!clinicArr().length||!staffArr().length){toast('Add clinics and staff first.');return}taskForm(null,d.self&&me()?.name)},
+  editTask:d=>taskForm(d.id),
+  done:d=>{setStatus({id:d.id,...S.tasks[d.id]},'done');toast('Marked done')},
+  start:d=>setStatus({id:d.id,...S.tasks[d.id]},'progress'),
+  reopen:d=>setStatus({id:d.id,...S.tasks[d.id]},'todo'),
+  carry:d=>{carryOver({id:d.id,...S.tasks[d.id]});toast('Moved to today')},
+  carryAll:async()=>{const M=taskArr().filter(t=>isMissed(t)&&inClinic(t));for(const t of M)carryOver(t);toast(`${M.length} task${M.length===1?'':'s'} moved to today`)},
+  gotoMissed:()=>{UI.tf.status='missed';UI.view='tasks';saveUI();render()},
+  delTask:(d,b)=>confirmBtn(b,()=>{del('tasks',d.id);dlg.close();toast('Task deleted')}),
+  reportForm:()=>reportForm(),
+  viewReport:d=>viewReport(d.id),
+  rDay:d=>{UI.rDate=addDays(UI.rDate||today(),+d.n);render()},
+  newComplaint:()=>{if(!clinicArr().length){toast('Add a clinic first.');return}complaintForm()},
+  editComplaint:d=>complaintForm(d.id),
+  delComplaint:(d,b)=>confirmBtn(b,()=>{del('complaints',d.id);dlg.close();toast('Complaint deleted')}),
+  cf:d=>{UI.cf.status=d.v;saveUI();render()},
+  effBy:d=>{UI.effBy=d.v;saveUI();render()},
+  effDays:d=>{UI.effDays=+d.v;saveUI();render()},
+  clinicForm:d=>clinicForm(d.id),
+  staffForm:d=>{if(!clinicArr().length){toast('Add a clinic first.');clinicForm();return}staffForm(d.id)},
+  delClinic:(d,b)=>{if(staffArr().some(s=>s.clinicId===d.id)){toast('Move or delete this clinic’s staff first.');return}confirmBtn(b,()=>{del('clinics',d.id);dlg.close()})},
+  delStaff:(d,b)=>confirmBtn(b,()=>{if(loginOf(d.id))callFn({action:'remove',staff_id:d.id}).then(loadProfiles).catch(e=>toast(e.message));del('staff',d.id);if(UI.actingAs===d.id){UI.actingAs='';saveUI()}dlg.close()}),
+  verifyTask:d=>{const t=S.tasks[d.id];put('tasks',d.id,{...t,verify:'verified',verifiedBy:me()?.name||'Head office admin',verifiedAt:new Date().toISOString(),history:[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office admin',what:'Verified'}].slice(-20)});toast('Verified')},
+  verifyAll:()=>{const L=toVerify();L.forEach(t=>ACT.verifyTask({id:t.id}));toast(`${L.length} tasks verified`)},
+  returnTask:d=>returnForm(d.id),
+  newRequest:()=>requestForm(),
+  decide:d=>decideForm(d.id),
+  rf:d=>{UI.rf=d.v;render()},
+  loadSample:()=>loadSample(),
+  signOut:()=>signOut(),
+  createLogin:d=>loginForm(d.id,false),
+  resetPw:d=>loginForm(d.id,true),
+  ownPw:()=>ownPwForm(),
+  removeLogin:(d,b)=>confirmBtn(b,()=>callFn({action:'remove',staff_id:d.id}).then(()=>{dlg.close();toast('Login removed');return loadProfiles().then(schedule)}).catch(e=>toast(e.message))),
+  clearSample:(d,b)=>{b.dataset.id='all';confirmBtn(b,clearSample)},
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(!b)return;const f=ACT[b.dataset.act];if(f){e.preventDefault();f(b.dataset,b,e)}});
+document.addEventListener('change',e=>{const k=e.target.dataset.change;if(!k)return;const v=e.target.value;
+  if(k==='acting'){UI.actingAs=v;const s=S.staff[v];if(s&&s.role!=='admin')UI.clinic=s.clinicId;else if(!v)UI.clinic='';UI.view=s&&s.role==='staff'?'myday':UI.view}
+  else if(k==='clinic')UI.clinic=v;else if(k==='actWho')UI.actWho=v;else if(k==='actDays')UI.actDays=+v;else if(k==='rDate')UI.rDate=v;else if(k.startsWith('tf.'))UI.tf[k.slice(3)]=v;
+  saveUI();render()});
+let qT;document.addEventListener('input',e=>{if(e.target.dataset.input!=='tf.q')return;UI.tf.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>{saveUI();render();const el=document.getElementById('tf-q');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)});
+setInterval(()=>{if(!dlg.open)schedule()},60000);
+boot();
+</script>
+</body>
+</html>
