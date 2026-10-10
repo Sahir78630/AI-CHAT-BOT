@@ -64,7 +64,7 @@ The widget pushes a `chat_lead` event to `dataLayer` so Google Tag Manager / Ads
 
 ## Live deployment (10 Oct 2026)
 
-- Site and widget: https://metaclinic-chatbot.vercel.app (Vercel project `metaclinic-chatbot`, source in `vercel/`)
-- Embed on metaclinic.ae: `<script src="https://metaclinic-chatbot.vercel.app/widget.js" defer></script>`
+- Site and widget: https://metaclinic-chat.vercel.app (Vercel project `metaclinic-chatbot`, source in `vercel/`)
+- Embed on metaclinic.ae: `<script src="https://metaclinic-chat.vercel.app/widget.js" defer></script>`
 - Leads: Supabase project `metaclinic-chatbot` (Mumbai), table `leads`. View them at https://supabase.com/dashboard/project/lhcnsiwrkhhhdakpmudc/editor. The website key can only insert rows; it cannot read them.
 - Still needed: `ANTHROPIC_API_KEY` in Vercel → Project → Settings → Environment Variables (Production), then redeploy. Until then the chat replies with the WhatsApp/phone fallback.
