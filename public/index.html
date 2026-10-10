@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meta Clinic Booking Assistant</title>
+<style>
+:root{--bg:#eef3f1;--ink:#132826;--muted:#5b706d;--teal:#0f6e6a;--card:#fff;--line:#d6e2df}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Segoe UI",Tahoma,system-ui,sans-serif;line-height:1.55}
+main{max-width:720px;margin:0 auto;padding:40px 20px 120px}
+.tag{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--teal);font-weight:600}
+h1{font-size:30px;margin:6px 0 10px}
+p{color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-top:22px}
+pre{background:#0f1c1a;color:#d8ede9;padding:14px;border-radius:10px;overflow-x:auto;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <div class="tag">metaclinic.ae</div>
+  <h1>Meta Clinic booking assistant</h1>
+  <p>Mira answers questions about Meta Clinic's medical, dental and aesthetic services in English and Arabic, and turns each chat into a booking request that reception confirms by phone or WhatsApp. Try it with the chat button in the corner.</p>
+  <div class="card">
+    <b>Add it to metaclinic.ae</b>
+    <p>Paste this before <code>&lt;/body&gt;</code> (Elementor → Custom Code):</p>
+    <pre>&lt;script src="https://metaclinic-chatbot.vercel.app/widget.js" defer&gt;&lt;/script&gt;</pre>
+  </div>
+</main>
+<script src="/widget.js" data-api="" data-open="true" defer></script>
+</body>
+</html>
