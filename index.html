@@ -238,10 +238,10 @@ const SB_URL='https://oxucnacsnkdxdprzudhx.supabase.co',SB_KEY='sb_publishable_X
 const sb=window.supabase.createClient(SB_URL,SB_KEY);
 let PROFILE=null,PROFILES={},channel=null;
 function saveErr(e){const m=e&&e.message||'';if(/row-level security/i.test(m))return'You do not have permission to change this.';if(/JWT|session/i.test(m))return'Your session expired. Sign in again.';return m||'Could not save. Check your connection.'}
-function put(col,id,obj){obj=clean(obj);const prev=S[col][id];S[col]={...S[col],[id]:obj};schedule();
+function put(col,id,obj){obj=clean(obj);recentWrites[col+'/'+id]=Date.now();const prev=S[col][id];S[col]={...S[col],[id]:obj};schedule();
   const k=col+'/'+id;chains[k]=(chains[k]||Promise.resolve()).then(async()=>{const{error}=await sb.from('docs').upsert({col,id,data:obj});
     if(error){toast(saveErr(error));const c={...S[col]};if(prev)c[id]=prev;else delete c[id];S[col]=c;schedule()}});return chains[k]}
-function del(col,id){const prev=S[col][id];const c={...S[col]};delete c[id];S[col]=c;schedule();
+function del(col,id){recentWrites[col+'/'+id]=Date.now();const prev=S[col][id];const c={...S[col]};delete c[id];S[col]=c;schedule();
   const k=col+'/'+id;chains[k]=(chains[k]||Promise.resolve()).then(async()=>{const{error,count}=await sb.from('docs').delete({count:'exact'}).eq('col',col).eq('id',id);
     if(error||count===0){toast(error?saveErr(error):'You do not have permission to delete this.');if(prev)S[col]={...S[col],[id]:prev};schedule()}});return chains[k]}
 async function loadAll(){const all=[];for(let from=0;;from+=1000){const{data,error}=await sb.from('docs').select('col,id,data').order('col').order('id').range(from,from+999);if(error)throw error;all.push(...data);if(data.length<1000)break}
@@ -285,12 +285,74 @@ async function startSession(session){
   if(channel)sb.removeChannel(channel);
   channel=sb.channel('live').on('postgres_changes',{event:'*',schema:'public',table:'docs'},pl=>{
     if(pl.eventType==='DELETE'){const o=pl.old||{};if(S[o.col]&&S[o.col][o.id]){const c={...S[o.col]};delete c[o.id];S[o.col]=c}}
-    else{const n=pl.new;if(n&&S[n.col])S[n.col]={...S[n.col],[n.id]:n.data}}schedule()})
+    else{const n=pl.new;if(n&&S[n.col])noteChange(n.col,n.id,S[n.col][n.id],n.data);if(n&&S[n.col])S[n.col]={...S[n.col],[n.id]:n.data}}schedule()})
    .on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>loadProfiles().then(()=>{const p2=PROFILES[PROFILE.user_id];if(!p2)return signOut();PROFILE=p2;adminOK=p2.role==='admin';schedule()}))
    .subscribe();
   schedule()}
 async function signOut(){try{await sb.auth.signOut()}catch{}PROFILE=null;PROFILES={};COLS.forEach(c=>S[c]={});if(channel){sb.removeChannel(channel);channel=null}UI.actingAs='';saveUI();if(dlg.open)dlg.close();document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML='';showAuth()}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&PROFILE)loadAll().then(schedule).catch(()=>{})});
+
+/* ---------- desktop pop-up notifications ---------- */
+const NOTIF_OK=typeof Notification!=='undefined';
+const recentWrites={};let unseen=0,nQueue=[],nTimer=null;const BASE_TITLE=document.title||'Clinic Ops Desk';
+function notifState(){if(!NOTIF_OK)return'unsupported';if(lsGet('cod.notifOff',false))return'off';return Notification.permission}
+function enableNotifs(){lsSet('cod.notifOff',false);if(!NOTIF_OK){toast('This browser does not support desktop notifications.');return}
+  if(Notification.permission==='granted'){toast('Desktop notifications are on.');schedule();return}
+  if(Notification.permission==='denied'){toast('Notifications are blocked. Allow them from the lock icon next to the web address.');return}
+  Notification.requestPermission().then(p=>{toast(p==='granted'?'Desktop notifications are on.':'Notifications were not allowed.');if(p==='granted')try{new Notification('Clinic Ops Desk',{body:'You will now get pop-ups for your tasks, notes and requests.',tag:'cod-welcome'})}catch{}schedule()})}
+function disableNotifs(){lsSet('cod.notifOff',true);toast('Desktop notifications are off on this computer.');schedule()}
+function notifButton(){const st=notifState();if(st==='unsupported')return'';
+  return st==='granted'?'<button class="btn sm ghost" data-act="notifOff" title="Stop desktop pop-ups on this computer">🔔 Notifications on</button>'
+   :`<button class="btn sm" data-act="notifOn">🔕 Turn on notifications</button>`}
+function notifBanner(){const st=notifState();if(st!=='default'&&st!=='off'||lsGet('cod.notifAsked',false))return'';
+  return`<div class="banner info"><span>Get a pop-up on this computer when a task, note or request comes in for you.</span><span style="display:flex;gap:6px"><button class="btn sm primary" data-act="notifOn">Turn on</button><button class="btn sm ghost" data-act="notifLater">Not now</button></span></div>`}
+// What a change means for the signed-in person. Returns a list of {title,body,view,urgent}.
+function eventsFor(col,o,n){
+  const myId=PROFILE?.staff_id||'',role=PROFILE?.role,my=S.staff[myId]||{},myName=my.name||(role==='admin'?'MD':'');
+  const out=[],add=(title,body,view,urgent)=>out.push({title,body:String(body||'').slice(0,240),view,urgent:!!urgent});
+  const who=id=>S.staff[id]?.name||'Someone',sameDept=x=>my.dept&&x.dept===my.dept&&(!x.clinicId||!my.clinicId||x.clinicId===my.clinicId);
+  if(col==='tasks'){const due=n.dueDate?` · due ${n.dueDate}${n.dueTime?' '+n.dueTime:''}`:'';
+    if(myId&&n.assigneeId===myId&&o?.assigneeId!==myId)add(n.priority==='urgent'?'Urgent task for you':n.priority==='high'?'High-priority task for you':'New task for you',`${n.title}${due}${n.createdBy?' · from '+n.createdBy:''}${n.notes?'\n'+n.notes:''}`,'myday',n.priority==='urgent'||n.priority==='high');
+    else if(myId&&n.assigneeId===myId&&o){const h=n.history||[],oh=o.history||[],last=h[h.length-1];
+      if(h.length>oh.length&&last&&last.by!==myName)add('Update on your task',`${n.title}\n${last.what} · ${last.by}`,'myday',n.verify==='returned');
+      else if((n.notes||'')!==(o.notes||''))add('Task notes updated',`${n.title}\n${n.notes||''}`,'myday')}
+    if(!n.assigneeId&&!o&&sameDept(n))add('New task for your department',`${n.title}${due}`,'myday',n.priority==='urgent');
+    const aRole=S.staff[n.assigneeId]?.role;
+    if(n.status==='done'&&o&&o.status!=='done'&&n.assigneeId!==myId&&n.verify!=='verified'){
+      if(role==='manager'&&aRole!=='admin'&&aRole!=='manager')add('Task ready to verify',`${who(n.assigneeId)} finished: ${n.title}`,'admin');
+      if(role==='admin'&&aRole==='manager')add('Task ready for MD verification',`${who(n.assigneeId)} finished: ${n.title}`,'admin')}
+    if(role==='admin'&&n.verify==='referred'&&o?.verify!=='referred')add('Task referred to you',`${n.title} · ${who(n.assigneeId)}\n${n.referredBy||''}: ${n.referNote||''}`,'admin',true)}
+  if(col==='requests'){const line=`${who(n.staffId)} · ${n.type||'Request'}: ${n.title||''}${n.amount!=null?' · AED '+n.amount:''}`;
+    if(!o&&n.staffId!==myId&&(role==='manager'&&n.status==='pending'||role==='admin'&&n.status==='referred'))add(role==='admin'?'Approval request for the MD':'New approval request',line+(n.details?'\n'+n.details:''),'requests',true);
+    else if(o&&o.status!==n.status){
+      if(role==='admin'&&n.status==='referred'&&n.staffId!==myId)add('Request referred to you',`${line}\n${n.mgrBy||''}: ${n.mgrNote||''}`,'requests',true);
+      if(myId&&n.staffId===myId){const m={approved:'approved ✅',rejected:'rejected',referred:'referred to the MD'}[n.status];
+        if(m)add(`Your request was ${m}`,`${n.title||''}${n.status==='referred'?(n.mgrNote?'\n'+n.mgrNote:''):(n.adminNote?'\n'+(n.adminBy||'')+': '+n.adminNote:'')}`,'requests')}}}
+  if(col==='reports'){
+    const fresh=n.submittedAt&&n.submittedAt!==o?.submittedAt;
+    if(fresh&&n.staffId!==myId){const mgrs=staffArr().filter(s=>s.role==='manager'&&s.active!==false);const ownerRole=S.staff[n.staffId]?.role;
+      if(role==='manager'&&ownerRole==='staff'||role==='admin'&&(ownerRole==='manager'||!mgrs.length))add('Daily report received',`${who(n.staffId)} · ${n.dept||''}${n.late?' · late':''}${n.issues?'\nIssues: '+n.issues:''}`,role==='admin'?'admin':'reports')}
+    if(myId&&n.staffId===myId&&o){
+      if(n.adminVerified&&(!o.adminVerified||n.adminNote!==o.adminNote))add('Your report was verified by the MD',n.adminNote||'','myday');
+      else if(n.reviewed&&(!o.reviewed||n.reviewNote!==o.reviewNote))add('Your report was reviewed',`${n.reviewedBy||''}${n.reviewNote?': '+n.reviewNote:''}`,'myday')}}
+  if(col==='complaints'){const line=`${n.patient||'Patient'} · ${clinicName(n.clinicId)} · ${SEVL[n.severity]||''}\n${n.description||''}`,urg=n.severity==='critical'||n.severity==='high';
+    if(myId&&n.handlerId===myId&&o?.handlerId!==myId)add('Complaint assigned to you',line,'complaints',urg);
+    else if(!o&&!n.handlerId&&sameDept(n))add('New complaint for your department',line,'complaints',urg);
+    else if(!o&&role==='manager'&&n.handlerId!==myId)add('New patient complaint',line,'complaints',urg);
+    else if(myId&&o&&n.handlerId===myId&&(n.resolution||'')!==(o.resolution||''))add('Complaint updated',`${n.patient||''}\n${n.resolution||''}`,'complaints')}
+  return out}
+function noteChange(col,id,o,n){
+  if(!PROFILE||!n)return;const t=recentWrites[col+'/'+id];if(t&&Date.now()-t<8000)return;
+  let ev=[];try{ev=eventsFor(col,o,n)}catch(e){console.warn(e)}
+  if(!ev.length)return;nQueue.push(...ev);clearTimeout(nTimer);nTimer=setTimeout(flushNotifs,1200)}
+function flushNotifs(){const q=nQueue;nQueue=[];if(!q.length)return;
+  const one=q.length===1?q[0]:{title:`${q.length} new updates for you`,body:q.slice(0,4).map(e=>'• '+e.title+': '+e.body.split('\n')[0]).join('\n'),view:q[0].view,urgent:q.some(e=>e.urgent)};
+  toast(one.title);
+  if(document.hidden){unseen+=q.length;document.title=`(${unseen}) ${BASE_TITLE}`}
+  if(notifState()!=='granted')return;
+  try{const nn=new Notification(one.title,{body:one.body,tag:'cod-'+Date.now(),requireInteraction:one.urgent,renotify:false});
+    nn.onclick=()=>{window.focus();if(one.view){UI.view=one.view;saveUI();render()}nn.close()}}catch(e){console.warn(e)}}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&unseen){unseen=0;document.title=BASE_TITLE}});
 
 /* ---------- ui state ---------- */
 const UI=Object.assign({view:'admin',rf:'',actWho:'',actDays:7,actingAs:'',clinic:'',tf:{q:'',dept:'',status:'open',pri:'',who:''},rDate:'',cf:{status:'open',clinic:''},effDays:30,effBy:'staff'},lsGet('cod.ui',{}));
@@ -361,10 +423,10 @@ function render(){
   const myOpen=UI.actingAs?taskArr().filter(t=>t.assigneeId===UI.actingAs&&isOpen(t)&&t.dueDate<=today()).length:0;
   document.getElementById('nav').innerHTML=allowed.map(([k,l])=>{let b='';if(k==='tasks'&&missedN)b=`<span class="badge" title="Missed tasks">${missedN}</span>`;if(k==='complaints'&&openC)b=`<span class="badge" title="Open complaints">${openC}</span>`;if(k==='requests'&&reqWait)b=`<span class="badge" title="Waiting for your decision">${reqWait}</span>`;if(k==='admin'){const n=reqWait+toVerify().length;if(n)b=`<span class="badge" title="Items waiting for you">${n}</span>`}if(k==='myday'&&myOpen)b=`<span class="badge" title="Due or overdue">${myOpen}</span>`;
     return`<button data-act="nav" data-v="${k}" ${UI.view===k?'aria-current="page"':''}><span>${k==='admin'&&role==='manager'?'Verify & approve':l}</span>${b}</button>`}).join('');
-  document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b>${adminOK?' · MD':''}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${adminOK?'<button class="btn sm" data-act="ownPw">Change password</button>':''}<button class="btn sm" data-act="signOut">Sign out</button></span><span>● Live for all staff · Dubai time</span>`;
+  document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b>${adminOK?' · MD':''}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${adminOK?'<button class="btn sm" data-act="ownPw">Change password</button>':''}${notifButton()}<button class="btn sm" data-act="signOut">Sign out</button></span><span>● Live for all staff · Dubai time</span>`;
   const V={admin:vAdmin,requests:vRequests,dashboard:vDashboard,myday:vMyDay,tasks:vTasks,reports:vReports,complaints:vComplaints,efficiency:vEfficiency,setup:vSetup}[UI.view];
   const main=document.getElementById('main');const y=window.scrollY;
-  main.innerHTML=topbar()+V();
+  main.innerHTML=topbar()+notifBanner()+V();
   window.scrollTo(0,y)}
 function topbar(){
   const titles={admin:'MD review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
@@ -763,6 +825,9 @@ const ACT={
   rf:d=>{UI.rf=d.v;render()},
   loadSample:()=>loadSample(),
   signOut:()=>signOut(),
+  notifOn:()=>{lsSet('cod.notifAsked',true);enableNotifs()},
+  notifOff:()=>disableNotifs(),
+  notifLater:()=>{lsSet('cod.notifAsked',true);schedule()},
   createLogin:d=>loginForm(d.id,false),
   resetPw:d=>loginForm(d.id,true),
   ownPw:()=>ownPwForm(),
