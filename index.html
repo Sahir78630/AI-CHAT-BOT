@@ -349,7 +349,7 @@ function scoreCell(s){const[l,c]=grade(s);const col=s==null?'var(--line)':s>=85?
 
 /* ---------- render ---------- */
 let raf=0;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;render()})}
-const NAV=[['admin','MD review',['admin']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
+const NAV=[['admin','MD review',['admin','manager']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
 function render(){
   if(!PROFILE)return;
   const role=myRole();const allowed=NAV.filter(n=>n[2].includes(role));
@@ -360,7 +360,7 @@ function render(){
   const openC=Object.values(S.complaints).filter(c=>(c.status==='new'||c.status==='investigating')&&inClinic(c)).length;
   const myOpen=UI.actingAs?taskArr().filter(t=>t.assigneeId===UI.actingAs&&isOpen(t)&&t.dueDate<=today()).length:0;
   document.getElementById('nav').innerHTML=allowed.map(([k,l])=>{let b='';if(k==='tasks'&&missedN)b=`<span class="badge" title="Missed tasks">${missedN}</span>`;if(k==='complaints'&&openC)b=`<span class="badge" title="Open complaints">${openC}</span>`;if(k==='requests'&&reqWait)b=`<span class="badge" title="Waiting for your decision">${reqWait}</span>`;if(k==='admin'){const n=reqWait+toVerify().length;if(n)b=`<span class="badge" title="Items waiting for you">${n}</span>`}if(k==='myday'&&myOpen)b=`<span class="badge" title="Due or overdue">${myOpen}</span>`;
-    return`<button data-act="nav" data-v="${k}" ${UI.view===k?'aria-current="page"':''}><span>${l}</span>${b}</button>`}).join('');
+    return`<button data-act="nav" data-v="${k}" ${UI.view===k?'aria-current="page"':''}><span>${k==='admin'&&role==='manager'?'Verify work':l}</span>${b}</button>`}).join('');
   document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b>${adminOK?' · MD':''}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${adminOK?'<button class="btn sm" data-act="ownPw">Change password</button>':''}<button class="btn sm" data-act="signOut">Sign out</button></span><span>● Live for all staff · Dubai time</span>`;
   const V={admin:vAdmin,requests:vRequests,dashboard:vDashboard,myday:vMyDay,tasks:vTasks,reports:vReports,complaints:vComplaints,efficiency:vEfficiency,setup:vSetup}[UI.view];
   const main=document.getElementById('main');const y=window.scrollY;
@@ -369,7 +369,7 @@ function render(){
 function topbar(){
   const titles={admin:'MD review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
   const d=new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  return`<div class="topbar"><div><div class="eyebrow">${esc(d)}</div><h1>${titles[UI.view]}</h1></div>
+  return`<div class="topbar"><div><div class="eyebrow">${esc(d)}</div><h1>${UI.view==='admin'&&myRole()==='manager'?'Verify work':titles[UI.view]}</h1></div>
   <div class="who">${adminOK?'':`<button class="btn sm" data-act="signOut" title="Signed in as ${esc(PROFILE.username)}">Sign out</button>`}${!adminOK?'':`<label class="f">View as<select id="actingAs" data-change="acting"><option value="">MD (you)</option>${staffArr().map(s=>`<option value="${s.id}"${s.id===UI.actingAs?' selected':''}>${esc(s.name)} · ${esc(s.dept)}</option>`).join('')}</select></label>`}
   ${myRole()!=='staff'?`<label class="f">Clinic<select data-change="clinic"><option value="">All clinics</option>${clinicArr().map(c=>`<option value="${c.id}"${c.id===UI.clinic?' selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`:''}</div></div>`}
 
@@ -382,8 +382,8 @@ function taskRow(t,o={}){
   <div style="min-width:0"><div class="t">${esc(t.title)}</div><div class="m">
    <span class="chip p-${t.priority}">${PRIL[t.priority]||''}</span><span class="chip s-${t.status}">${STATUSL[t.status]}</span>
    ${missed?`<span class="missed-tag">Missed · ${esc(due)}</span>`:over?`<span class="missed-tag">Overdue · ${esc(due)}</span>`:`<span>Due ${esc(due)}</span>`}
-   ${t.status==='done'?(t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>'):''}
-   ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by MD: ${esc(t.recommendation)}</span>`:''}
+   ${t.status==='done'?(t.verify==='verified'?`<span class="chip ok" title="${esc(t.verifiedBy||'')}">Verified${t.verifiedRole?' · '+esc(t.verifiedRole):''}</span>`:'<span class="chip muted">Awaiting verification</span>'):''}
+   ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by ${esc(t.returnedBy||'MD')}: ${esc(t.recommendation)}</span>`:''}
    ${t.carryCount?`<span class="chip goldc" title="Originally due ${esc(t.originalDue)}">Carried ×${t.carryCount}</span>`:''}
    ${o.noWho?'':`<span>${esc(staffName(t.assigneeId))}</span>`}<span>${esc(t.dept||'')}</span><span>${esc(clinicName(t.clinicId))}</span>
    ${t.recurrence&&t.recurrence!=='none'?`<span>↻ ${esc(REC.find(r=>r[0]===t.recurrence)[1])}</span>`:''}</div></div>
@@ -514,8 +514,8 @@ function vSetup(){
 const reqArr=()=>Object.entries(S.requests).map(([id,r])=>({id,...r}));
 const waiting=r=>r.status==='pending'||r.status==='recommended'||r.status==='not_recommended';
 function canAct(r){const role=myRole();if(role==='admin')return waiting(r);if(role==='manager')return r.status==='pending'&&r.clinicId===me()?.clinicId&&r.staffId!==me()?.id;return false}
-const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&&inClinic(t)).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
-const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>!r.adminVerified&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
+const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&&inClinic(t)&&!(myRole()==='manager'&&t.assigneeId===me()?.id)).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
+const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>(myRole()==='manager'?!r.reviewed&&r.staffId!==me()?.id:!r.adminVerified)&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
 const aed=n=>n||n===0?'AED '+Number(n).toLocaleString('en-US'):'';
 const when=iso=>iso?new Date(iso).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
 function requestRow(r){const[l,c]=RSTAT[r.status]||['',''];
@@ -548,10 +548,10 @@ function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),
 function returnForm(id){const t=S.tasks[id];
   modal('Return task with a recommendation',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. It goes back on their list as To do with your note.</div>`+
    F('What needs to be done',`<textarea name="note" required placeholder="e.g. Attach the signed approval letter before closing"></textarea>`,1)+F('New due date',`<input type="date" name="due" value="${today()}">`),
-   fd=>{const by=me()?.name||'MD';const n={...t,status:'todo',verify:'returned',recommendation:fd.note,returnedCount:(t.returnedCount||0)+1,dueDate:fd.due||today(),
+   fd=>{const by=me()?.name||'MD';const n={...t,status:'todo',verify:'returned',recommendation:fd.note,returnedBy:by,returnedCount:(t.returnedCount||0)+1,dueDate:fd.due||today(),
      history:[...(t.history||[]),{at:new Date().toISOString(),by,what:'Returned: '+fd.note}].slice(-20)};delete n.completedAt;delete n.completedLocal;put('tasks',id,n);toast('Returned to '+staffName(t.assigneeId))},{label:'Return task'})}
 function activity(who,days){const since=addDays(today(),-days),E=[];
-  taskArr().forEach(t=>{if(!inClinic(t)||(who&&t.assigneeId!==who))return;if(t.completedAt&&(t.completedLocal||'')>=since)E.push({at:t.completedAt,who:t.assigneeId,kind:'Task completed',k:'s-done',text:t.title,extra:t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>',act:t.verify!=='verified'&&myRole()==='admin'?`<button class="btn sm" data-act="verifyTask" data-id="${t.id}">Verify</button>`:''})});
+  taskArr().forEach(t=>{if(!inClinic(t)||(who&&t.assigneeId!==who))return;if(t.completedAt&&(t.completedLocal||'')>=since)E.push({at:t.completedAt,who:t.assigneeId,kind:'Task completed',k:'s-done',text:t.title,extra:t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>',act:t.verify!=='verified'&&(myRole()==='admin'||(myRole()==='manager'&&t.assigneeId!==me()?.id))?`<button class="btn sm" data-act="verifyTask" data-id="${t.id}">Verify</button>`:''})});
   Object.entries(S.reports).forEach(([id,r])=>{if(!inClinic(r)||(who&&r.staffId!==who)||r.date<since)return;E.push({at:r.submittedAt,who:r.staffId,kind:'Daily report',k:'s-progress',text:r.summary,extra:r.adminVerified?'<span class="chip ok">Verified</span>':r.late?'<span class="chip warnc">Late</span>':'',act:`<button class="btn sm" data-act="viewReport" data-id="${id}">Open</button>`})});
   reqArr().forEach(r=>{if(!inClinic(r)||(who&&r.staffId!==who)||(r.createdAt||'').slice(0,10)<since)return;E.push({at:r.createdAt,who:r.staffId,kind:'Approval request',k:'goldc',text:r.title+(r.amount?' · '+aed(r.amount):''),extra:`<span class="chip ${RSTAT[r.status][1]}">${RSTAT[r.status][0]}</span>`,act:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`})});
   Object.entries(S.complaints).forEach(([id,c])=>{if(!inClinic(c)||(who&&c.handlerId!==who)||(c.createdAt||'').slice(0,10)<since)return;E.push({at:c.createdAt,who:c.handlerId,kind:'Complaint',k:'bad',text:`${c.patient} · ${c.category}`,extra:`<span class="chip muted">${CSTATL[c.status]}</span>`,act:`<button class="btn sm" data-act="editComplaint" data-id="${id}">Open</button>`})});
@@ -751,7 +751,7 @@ const ACT={
   staffForm:d=>{if(!clinicArr().length){toast('Add a clinic first.');clinicForm();return}staffForm(d.id)},
   delClinic:(d,b)=>{if(staffArr().some(s=>s.clinicId===d.id)){toast('Move or delete this clinic’s staff first.');return}confirmBtn(b,()=>{del('clinics',d.id);dlg.close()})},
   delStaff:(d,b)=>confirmBtn(b,()=>{if(loginOf(d.id))callFn({action:'remove',staff_id:d.id}).then(loadProfiles).catch(e=>toast(e.message));del('staff',d.id);if(UI.actingAs===d.id){UI.actingAs='';saveUI()}dlg.close()}),
-  verifyTask:d=>{const t=S.tasks[d.id];put('tasks',d.id,{...t,verify:'verified',verifiedBy:me()?.name||'MD',verifiedAt:new Date().toISOString(),history:[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Verified'}].slice(-20)});toast('Verified')},
+  verifyTask:d=>{const t=S.tasks[d.id];const vr=myRole()==='admin'?'MD':'Clinic manager';put('tasks',d.id,{...t,verify:'verified',verifiedBy:me()?.name||'MD',verifiedRole:vr,verifiedAt:new Date().toISOString(),history:[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Verified by '+vr}].slice(-20)});toast('Verified')},
   verifyAll:()=>{const L=toVerify();L.forEach(t=>ACT.verifyTask({id:t.id}));toast(`${L.length} tasks verified`)},
   returnTask:d=>returnForm(d.id),
   newRequest:()=>requestForm(),
