@@ -192,7 +192,7 @@ const PRIW=Object.fromEntries(PRI.map(p=>[p[0],p[2]]));
 const PRIL=Object.fromEntries(PRI.map(p=>[p[0],p[1]]));
 const STATUS=[['todo','To do'],['progress','In progress'],['blocked','Blocked'],['done','Done']];
 const STATUSL=Object.fromEntries(STATUS);
-const ROLES=[['staff','Staff'],['manager','Clinic manager'],['admin','Head office admin']];
+const ROLES=[['staff','Staff'],['manager','Clinic manager'],['admin','MD']];
 const ROLEL=Object.fromEntries(ROLES);
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const REC=[['none','One-off'],['daily','Every day'],['weekly','Every week'],['monthly','Every month']];
@@ -205,7 +205,7 @@ const CCATS=['Waiting time','Staff behaviour','Treatment outcome','Billing / pri
 const CHANNELS=['Walk-in','Phone','WhatsApp','Email','Google review','Social media'];
 const COLS=['clinics','staff','tasks','reports','complaints','requests'];
 const RTYPES=['Leave','Purchase / expense','Patient discount / refund','Overtime','Schedule / shift change','Insurance write-off','Marketing spend','Other'];
-const RSTAT={pending:['Waiting for manager','warnc'],recommended:['Recommended · awaiting admin','s-progress'],not_recommended:['Not recommended · awaiting admin','bad'],approved:['Approved','ok'],rejected:['Rejected','bad']};
+const RSTAT={pending:['Waiting for manager','warnc'],recommended:['Recommended · awaiting MD','s-progress'],not_recommended:['Not recommended · awaiting MD','bad'],approved:['Approved','ok'],rejected:['Rejected','bad']};
 
 /* ---------- time (Dubai) ---------- */
 const dtf=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
@@ -259,12 +259,12 @@ async function showAuth(msg){
   const a=document.getElementById('auth');a.hidden=false;
   a.innerHTML=hasAdmin?`<form class="auth-card" id="loginForm" novalidate><div class="brand"><div class="brand-mark">OD</div><div><b>Clinic Ops Desk</b><small>Head office · Dubai</small></div></div>
    <h1>Sign in</h1><label class="f">Username<input id="lu" name="lu" autocomplete="username" autocapitalize="none" required></label><label class="f">Password<input id="lp" name="lp" type="password" autocomplete="current-password" required></label>
-   <div class="auth-err" id="lerr">${esc(msg||'')}</div><button class="btn primary" type="submit">Sign in</button><p class="mini">No login yet? Ask your head office admin to create one for you.</p></form>`
+   <div class="auth-err" id="lerr">${esc(msg||'')}</div><button class="btn primary" type="submit">Sign in</button><p class="mini">No login yet? Ask your MD to create one for you.</p></form>`
   :`<form class="auth-card" id="setupForm" novalidate><div class="brand"><div class="brand-mark">OD</div><div><b>Clinic Ops Desk</b><small>First-time setup</small></div></div>
-   <h1>Create the head office admin</h1><p class="mini">This runs once. Enter the setup code you were given.</p>
-   <label class="f">Setup code<input id="sc" name="sc" autocapitalize="characters" required></label><label class="f">Admin username<input id="su" name="su" autocapitalize="none" placeholder="e.g. sahir" required></label>
+   <h1>Create the MD account</h1><p class="mini">This runs once. Enter the setup code you were given.</p>
+   <label class="f">Setup code<input id="sc" name="sc" autocapitalize="characters" required></label><label class="f">MD username<input id="su" name="su" autocapitalize="none" placeholder="e.g. sahir" required></label>
    <label class="f">Password (8+ characters)<input id="sp" name="sp" type="password" autocomplete="new-password" required></label><label class="f">Repeat password<input id="sp2" name="sp2" type="password" autocomplete="new-password" required></label>
-   <div class="auth-err" id="lerr"></div><button class="btn primary" type="submit">Create admin account</button></form>`;
+   <div class="auth-err" id="lerr"></div><button class="btn primary" type="submit">Create MD account</button></form>`;
   const f=a.querySelector('form'),err=a.querySelector('#lerr');
   f.addEventListener('submit',async e=>{e.preventDefault();err.textContent='';const btn=f.querySelector('button[type=submit]');btn.disabled=true;
     try{if(f.id==='setupForm'){const u=f.su.value.trim().toLowerCase(),p=f.sp.value;if(p!==f.sp2.value)throw new Error('The passwords do not match.');
@@ -276,7 +276,7 @@ async function showAuth(msg){
   const first=a.querySelector('input');if(first)first.focus()}
 async function startSession(session){
   const{data:p}=await sb.from('profiles').select('user_id,username,staff_id,role').eq('user_id',session.user.id).maybeSingle();
-  if(!p){await sb.auth.signOut();return showAuth('This login has no access. Ask the head office admin.')}
+  if(!p){await sb.auth.signOut();return showAuth('This login has no access. Ask the MD.')}
   PROFILE=p;adminOK=p.role==='admin';if(!adminOK){UI.actingAs=p.staff_id||'';UI.clinic=''}
   document.getElementById('auth').hidden=true;document.getElementById('main').innerHTML='<div class="empty">Loading your workspace…</div>';
   try{await Promise.all([loadAll(),loadProfiles()])}catch(e){toast('Could not load data. Check your connection.')}
@@ -315,9 +315,9 @@ function worksOn(s,date){return s.active!==false&&(s.dayOff==null||s.dayOff===''
 function reportFor(sid,date){return S.reports[date+'_'+sid]}
 
 function carryOver(t){const old=t.dueDate;const nt={...t};delete nt.id;nt.originalDue=t.originalDue||old;nt.carryCount=(t.carryCount||0)+1;nt.dueDate=today();
-  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office',what:`Carried over from ${old}`}].slice(-20);return put('tasks',t.id,nt)}
+  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:`Carried over from ${old}`}].slice(-20);return put('tasks',t.id,nt)}
 function setStatus(t,st){const nt={...t};delete nt.id;nt.status=st;
-  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office',what:'Status: '+STATUSL[st]}].slice(-20);
+  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Status: '+STATUSL[st]}].slice(-20);
   if(st==='done'){nt.completedAt=new Date().toISOString();nt.completedLocal=nowKey();nt.verify='pending';delete nt.verifiedBy;delete nt.verifiedAt;
     if(t.recurrence&&t.recurrence!=='none'&&!t.nextCreated){nt.nextCreated=true;const base=t.dueDate||today();
       let nd=t.recurrence==='daily'?addDays(base,1):t.recurrence==='weekly'?addDays(base,7):addMonths(base,1);if(nd<today())nd=today();
@@ -349,11 +349,11 @@ function scoreCell(s){const[l,c]=grade(s);const col=s==null?'var(--line)':s>=85?
 
 /* ---------- render ---------- */
 let raf=0;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;render()})}
-const NAV=[['admin','Admin review',['admin']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
+const NAV=[['admin','MD review',['admin']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
 function render(){
   if(!PROFILE)return;
   const role=myRole();const allowed=NAV.filter(n=>n[2].includes(role));
-  if(role==='none'){document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML=topbar()+`<div class="empty"><h2>Choose who you are</h2><p>This login is not linked to a staff member. Ask the head office admin.</p></div>`;return}
+  if(role==='none'){document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML=topbar()+`<div class="empty"><h2>Choose who you are</h2><p>This login is not linked to a staff member. Ask the MD.</p></div>`;return}
   if(!allowed.find(n=>n[0]===UI.view))UI.view=allowed[0][0];
   const reqWait=reqArr().filter(r=>canAct(r)).length;
   const missedN=taskArr().filter(t=>isMissed(t)&&inClinic(t)).length;
@@ -361,16 +361,16 @@ function render(){
   const myOpen=UI.actingAs?taskArr().filter(t=>t.assigneeId===UI.actingAs&&isOpen(t)&&t.dueDate<=today()).length:0;
   document.getElementById('nav').innerHTML=allowed.map(([k,l])=>{let b='';if(k==='tasks'&&missedN)b=`<span class="badge" title="Missed tasks">${missedN}</span>`;if(k==='complaints'&&openC)b=`<span class="badge" title="Open complaints">${openC}</span>`;if(k==='requests'&&reqWait)b=`<span class="badge" title="Waiting for your decision">${reqWait}</span>`;if(k==='admin'){const n=reqWait+toVerify().length;if(n)b=`<span class="badge" title="Items waiting for you">${n}</span>`}if(k==='myday'&&myOpen)b=`<span class="badge" title="Due or overdue">${myOpen}</span>`;
     return`<button data-act="nav" data-v="${k}" ${UI.view===k?'aria-current="page"':''}><span>${l}</span>${b}</button>`}).join('');
-  document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b>${adminOK?' · admin':''}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${adminOK?'<button class="btn sm" data-act="ownPw">Change password</button>':''}<button class="btn sm" data-act="signOut">Sign out</button></span><span>● Live for all staff · Dubai time</span>`;
+  document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b>${adminOK?' · MD':''}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${adminOK?'<button class="btn sm" data-act="ownPw">Change password</button>':''}<button class="btn sm" data-act="signOut">Sign out</button></span><span>● Live for all staff · Dubai time</span>`;
   const V={admin:vAdmin,requests:vRequests,dashboard:vDashboard,myday:vMyDay,tasks:vTasks,reports:vReports,complaints:vComplaints,efficiency:vEfficiency,setup:vSetup}[UI.view];
   const main=document.getElementById('main');const y=window.scrollY;
   main.innerHTML=topbar()+V();
   window.scrollTo(0,y)}
 function topbar(){
-  const titles={admin:'Admin review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
+  const titles={admin:'MD review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
   const d=new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long',day:'numeric',month:'long',year:'numeric'});
   return`<div class="topbar"><div><div class="eyebrow">${esc(d)}</div><h1>${titles[UI.view]}</h1></div>
-  <div class="who">${adminOK?'':`<button class="btn sm" data-act="signOut" title="Signed in as ${esc(PROFILE.username)}">Sign out</button>`}${!adminOK?'':`<label class="f">View as<select id="actingAs" data-change="acting"><option value="">Head office admin (you)</option>${staffArr().map(s=>`<option value="${s.id}"${s.id===UI.actingAs?' selected':''}>${esc(s.name)} · ${esc(s.dept)}</option>`).join('')}</select></label>`}
+  <div class="who">${adminOK?'':`<button class="btn sm" data-act="signOut" title="Signed in as ${esc(PROFILE.username)}">Sign out</button>`}${!adminOK?'':`<label class="f">View as<select id="actingAs" data-change="acting"><option value="">MD (you)</option>${staffArr().map(s=>`<option value="${s.id}"${s.id===UI.actingAs?' selected':''}>${esc(s.name)} · ${esc(s.dept)}</option>`).join('')}</select></label>`}
   ${myRole()!=='staff'?`<label class="f">Clinic<select data-change="clinic"><option value="">All clinics</option>${clinicArr().map(c=>`<option value="${c.id}"${c.id===UI.clinic?' selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`:''}</div></div>`}
 
 function taskRow(t,o={}){
@@ -383,7 +383,7 @@ function taskRow(t,o={}){
    <span class="chip p-${t.priority}">${PRIL[t.priority]||''}</span><span class="chip s-${t.status}">${STATUSL[t.status]}</span>
    ${missed?`<span class="missed-tag">Missed · ${esc(due)}</span>`:over?`<span class="missed-tag">Overdue · ${esc(due)}</span>`:`<span>Due ${esc(due)}</span>`}
    ${t.status==='done'?(t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>'):''}
-   ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by admin: ${esc(t.recommendation)}</span>`:''}
+   ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by MD: ${esc(t.recommendation)}</span>`:''}
    ${t.carryCount?`<span class="chip goldc" title="Originally due ${esc(t.originalDue)}">Carried ×${t.carryCount}</span>`:''}
    ${o.noWho?'':`<span>${esc(staffName(t.assigneeId))}</span>`}<span>${esc(t.dept||'')}</span><span>${esc(clinicName(t.clinicId))}</span>
    ${t.recurrence&&t.recurrence!=='none'?`<span>↻ ${esc(REC.find(r=>r[0]===t.recurrence)[1])}</span>`:''}</div></div>
@@ -465,7 +465,7 @@ function vReports(){
     if(r)st=`<span class="chip ${r.late?'warnc':'ok'}">${r.late?'Late':'On time'} · ${esc(r.submittedLocal.slice(11))}</span>`;
     else if(off)st=`<span class="chip muted">Day off</span>`;else if(d<today()||dubai().time>(s.shiftEnd||'18:00'))st=`<span class="chip bad">Missing</span>`;else st=`<span class="chip muted">Due by ${esc(s.shiftEnd||'18:00')}</span>`;
     const mgr=managerOf(s.clinicId);
-    return`<tr><td><b>${esc(s.name)}</b><div class="mini">${esc(s.dept)}</div></td><td>${esc(clinicName(s.clinicId))}<div class="mini">to ${esc(mgr?.name||'—')}</div></td><td>${st}</td><td class="n">${r?r.completedIds.length:'·'}</td><td class="n">${r?r.pendingIds.length:'·'}</td><td>${r?(r.adminVerified?`<span class="chip ok">Verified by admin</span>`:r.reviewed?`<span class="chip ok">Reviewed</span>`:`<span class="chip s-progress">Awaiting review</span>`):''}</td><td>${r?`<button class="btn sm" data-act="viewReport" data-id="${d}_${s.id}">Open</button>`:''}</td></tr>`});
+    return`<tr><td><b>${esc(s.name)}</b><div class="mini">${esc(s.dept)}</div></td><td>${esc(clinicName(s.clinicId))}<div class="mini">to ${esc(mgr?.name||'—')}</div></td><td>${st}</td><td class="n">${r?r.completedIds.length:'·'}</td><td class="n">${r?r.pendingIds.length:'·'}</td><td>${r?(r.adminVerified?`<span class="chip ok">Verified by MD</span>`:r.reviewed?`<span class="chip ok">Reviewed</span>`:`<span class="chip s-progress">Awaiting review</span>`):''}</td><td>${r?`<button class="btn sm" data-act="viewReport" data-id="${d}_${s.id}">Open</button>`:''}</td></tr>`});
   const sub=staff.filter(s=>reportFor(s.id,d)).length,exp=staff.filter(s=>worksOn(s,d)).length;
   return`<section class="panel"><div class="panel-head"><div><h2>${fmtDate(d)} · ${sub} of ${exp} submitted</h2><p>Staff submit from “My day” before their shift ends. Late means after their shift end time.</p></div>
    <div style="display:flex;gap:8px;align-items:flex-end"><button class="btn sm" data-act="rDay" data-n="-1" aria-label="Previous day">‹</button><input type="date" id="rDate" data-change="rDate" value="${d}" style="width:auto"><button class="btn sm" data-act="rDay" data-n="1" aria-label="Next day">›</button></div></div>
@@ -504,7 +504,7 @@ function vSetup(){
   return`<div class="grid2"><section class="panel"><div class="panel-head"><div><h2>Clinics</h2><p>${C.length} clinic${C.length===1?'':'s'}</p></div><button class="btn primary sm" data-act="clinicForm">Add clinic</button></div>
    <div class="list">${C.map(c=>`<div class="row"><div></div><div><div class="t">${esc(c.name)}</div><div class="m"><span>${esc(c.area||'')}</span><span>Manager: ${esc(managerOf(c.id)?.name||'not set')}</span><span>${St.filter(s=>s.clinicId===c.id).length} staff</span></div></div><div class="acts"><button class="btn sm ghost" data-act="clinicForm" data-id="${c.id}">Edit</button></div></div>`).join('')||'<div class="mini">No clinics yet. Add one, or add “Head Office” as a location too.</div>'}</div></section>
   <section class="panel"><div class="panel-head"><div><h2>Workspace</h2><p>Live database. Every change shows up for all signed-in staff.</p></div></div>
-   <div class="note">A clinic manager receives the daily reports for their clinic. Add each person below, then press <b>Create login</b> to give them a username and password. Staff see their own day, clinic managers review their clinic, and only the head office admin can verify work, give final approvals and manage logins.</div>
+   <div class="note">A clinic manager receives the daily reports for their clinic. Add each person below, then press <b>Create login</b> to give them a username and password. Staff see their own day, clinic managers review their clinic, and only the MD can verify work, give final approvals and manage logins.</div>
    <div style="display:flex;gap:8px;flex-wrap:wrap">${!adminOK?'':hasSample?`<button class="btn danger" data-act="clearSample">Remove all sample data</button>`:`<button class="btn" data-act="loadSample">Load sample data</button>`}</div></section></div>
   <section class="panel"><div class="panel-head"><div><h2>Staff</h2><p>${St.length} people across ${DEPTS.length} departments</p></div><button class="btn primary sm" data-act="staffForm">Add staff member</button></div>
    <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Department</th><th>Clinic</th><th>Role</th><th>Shift ends</th><th>Day off</th><th>Login</th><th></th></tr></thead><tbody>
@@ -521,7 +521,7 @@ const when=iso=>iso?new Date(iso).toLocaleString('en-GB',{timeZone:TZ,day:'numer
 function requestRow(r){const[l,c]=RSTAT[r.status]||['',''];
   return`<div class="row"><div class="pbar ${waiting(r)?'high':r.status==='approved'?'low':'urgent'}"></div><div style="min-width:0"><div class="t">${esc(r.title)}${r.amount?` <span class="mono" style="font-weight:500">· ${esc(aed(r.amount))}</span>`:''}</div>
   <div class="m"><span class="chip ${c}">${l}</span><span>${esc(r.type)}</span><span>${esc(staffName(r.staffId))} · ${esc(r.dept||'')}</span><span>${esc(clinicName(r.clinicId))}</span>${r.neededBy?`<span>Needed by ${esc(fmtDate(r.neededBy))}</span>`:''}<span>Raised ${ago(r.createdAt)} ago</span></div>
-  ${r.mgrNote||r.adminNote?`<div class="m">${r.mgrNote?`<span>Manager: ${esc(r.mgrNote)}</span>`:''}${r.adminNote?`<span>Admin: ${esc(r.adminNote)}</span>`:''}</div>`:''}</div>
+  ${r.mgrNote||r.adminNote?`<div class="m">${r.mgrNote?`<span>Manager: ${esc(r.mgrNote)}</span>`:''}${r.adminNote?`<span>MD: ${esc(r.adminNote)}</span>`:''}</div>`:''}</div>
   <div class="acts">${canAct(r)?`<button class="btn sm primary" data-act="decide" data-id="${r.id}">Decide</button>`:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`}</div></div>`}
 function vRequests(){
   const role=myRole(),m=me();let R=reqArr().filter(inClinic);if(role==='staff')R=R.filter(r=>r.staffId===m?.id);
@@ -531,24 +531,24 @@ function vRequests(){
   const segs=[...(role!=='staff'?[['mine',`Needs my decision (${cnt.mine})`]]:[]),['waiting',`Waiting (${cnt.waiting})`],['approved','Approved'],['rejected','Rejected'],['all','All']];
   return`<section class="panel"><div class="panel-head"><div class="seg" role="group" aria-label="Filter approvals">${segs.map(([k,l])=>`<button data-act="rf" data-v="${k}" aria-pressed="${f===k}">${l}</button>`).join('')}</div>
   ${m&&m.name?`<button class="btn primary" data-act="newRequest">Request approval</button>`:''}</div>
-  <div class="note">Staff raise a request. Their clinic manager recommends it or not, then the head office admin gives the final approval.</div>
+  <div class="note">Staff raise a request. Their clinic manager recommends it or not, then the MD gives the final approval.</div>
   <div class="list">${R.map(requestRow).join('')||'<div class="empty">No requests here.</div>'}</div></section>`}
 function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “Using as” first.');return}
   modal('Request approval',F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
    F('What needs approval',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`<input type="date" name="neededBy">`),
-   fd=>{const byMgr=m.role!=='staff';put('requests',uid(),{...fd,amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:byMgr?'recommended':'pending',mgrNote:byMgr?'Raised by clinic manager':'',createdAt:new Date().toISOString()});toast(byMgr?'Sent to head office admin':'Sent to your clinic manager')},{label:'Send request'})}
+   fd=>{const byMgr=m.role!=='staff';put('requests',uid(),{...fd,amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:byMgr?'recommended':'pending',mgrNote:byMgr?'Raised by clinic manager':'',createdAt:new Date().toISOString()});toast(byMgr?'Sent to MD':'Sent to your clinic manager')},{label:'Send request'})}
 function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
   const btns=role==='admin'?`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn primary" type="submit" value="yes">Approve</button>`:`<button class="btn danger" type="submit" value="no">Not recommended</button><button class="btn primary" type="submit" value="yes">Recommend</button>`;
-  modal(r.title,`<dl class="kv full">${kv('Status',(RSTAT[r.status]||[''])[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',r.neededBy)}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Manager',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Admin',r.adminNote?`${r.adminBy?r.adminBy+': ':''}${r.adminNote}`:'')}</dl>`+
-   (act?F(role==='admin'?'Admin comment':'Manager recommendation',`<textarea name="note"></textarea>`,1):''),
-   act?(fd,choice)=>{if(!choice)return false;const by=me()?.name||'Head office admin',at=new Date().toISOString();
+  modal(r.title,`<dl class="kv full">${kv('Status',(RSTAT[r.status]||[''])[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',r.neededBy)}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Manager',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('MD',r.adminNote?`${r.adminBy?r.adminBy+': ':''}${r.adminNote}`:'')}</dl>`+
+   (act?F(role==='admin'?'MD comment':'Manager recommendation',`<textarea name="note"></textarea>`,1):''),
+   act?(fd,choice)=>{if(!choice)return false;const by=me()?.name||'MD',at=new Date().toISOString();
      if(role==='admin')put('requests',id,{...r,status:choice==='yes'?'approved':'rejected',adminNote:fd.note,adminBy:by,decidedAt:at});
      else put('requests',id,{...r,status:choice==='yes'?'recommended':'not_recommended',mgrNote:fd.note,mgrBy:by,mgrAt:at});
-     toast(role==='admin'?(choice==='yes'?'Approved':'Rejected'):'Sent to head office admin')}:null,{buttons:btns,noFocus:1})}
+     toast(role==='admin'?(choice==='yes'?'Approved':'Rejected'):'Sent to MD')}:null,{buttons:btns,noFocus:1})}
 function returnForm(id){const t=S.tasks[id];
   modal('Return task with a recommendation',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. It goes back on their list as To do with your note.</div>`+
    F('What needs to be done',`<textarea name="note" required placeholder="e.g. Attach the signed approval letter before closing"></textarea>`,1)+F('New due date',`<input type="date" name="due" value="${today()}">`),
-   fd=>{const by=me()?.name||'Head office admin';const n={...t,status:'todo',verify:'returned',recommendation:fd.note,returnedCount:(t.returnedCount||0)+1,dueDate:fd.due||today(),
+   fd=>{const by=me()?.name||'MD';const n={...t,status:'todo',verify:'returned',recommendation:fd.note,returnedCount:(t.returnedCount||0)+1,dueDate:fd.due||today(),
      history:[...(t.history||[]),{at:new Date().toISOString(),by,what:'Returned: '+fd.note}].slice(-20)};delete n.completedAt;delete n.completedLocal;put('tasks',id,n);toast('Returned to '+staffName(t.assigneeId))},{label:'Return task'})}
 function activity(who,days){const since=addDays(today(),-days),E=[];
   taskArr().forEach(t=>{if(!inClinic(t)||(who&&t.assigneeId!==who))return;if(t.completedAt&&(t.completedLocal||'')>=since)E.push({at:t.completedAt,who:t.assigneeId,kind:'Task completed',k:'s-done',text:t.title,extra:t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>',act:t.verify!=='verified'&&myRole()==='admin'?`<button class="btn sm" data-act="verifyTask" data-id="${t.id}">Verify</button>`:''})});
@@ -624,10 +624,10 @@ function taskForm(id,self){
    `<div class="mini" style="align-self:end">Repeating tasks create the next one when marked done.</div>`+
    F('Notes / instructions',`<textarea name="notes">${esc(t.notes||'')}</textarea>`,1)+
    (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(new Date(h.at).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</li>`).join('')}</ul></div>`:''),
-   fd=>{const base=id?{...t}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'Head office',carryCount:0,history:[]};
+   fd=>{const base=id?{...t}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'MD',carryCount:0,history:[]};
      const wasDone=base.status==='done';const n={...base,...fd};
      if(id&&base.dueDate!==fd.dueDate&&!base.originalDue&&base.dueDate<today())n.originalDue=base.dueDate;
-     if(id){n.history=[...(base.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office',what:'Edited'}].slice(-20)}
+     if(id){n.history=[...(base.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Edited'}].slice(-20)}
      const tid=id||uid();
      if(fd.status==='done'&&!wasDone){n.status=base.status||'todo';put('tasks',tid,n);setStatus({id:tid,...S.tasks[tid]},'done')}
      else{if(fd.status!=='done'){delete n.completedAt;delete n.completedLocal}put('tasks',tid,n)}
@@ -662,11 +662,11 @@ function viewReport(id){
   const r=S.reports[id];if(!r)return;const s=S.staff[r.staffId]||{name:'Former staff'};const role=myRole(),canReview=role==='manager'||role==='admin',isAdm=role==='admin';
   const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
   modal(`${s.name} · ${fmtDate(r.date)}`,
-   `<dl class="kv full">${kv('Department',r.dept)}${kv('Clinic',clinicName(r.clinicId))}${kv('Submitted',r.submittedLocal.replace('T',' ')+(r.late?' (after shift end)':''))}${kv('Summary',r.summary)}${kv('Extra work',r.extra)}${kv('Pending because',r.pendingReason)}${kv('Issues',r.issues)}${kv('Tomorrow',r.tomorrow)}${kv('Cases handled',r.cases)}${kv('Hours',r.hours)}${r.reviewed?kv('Manager review',(r.reviewedBy||'')+(r.reviewNote?': '+r.reviewNote:'')):''}${r.adminVerified?kv('Admin verified',(r.adminBy||'')+(r.adminNote?': '+r.adminNote:'')):''}</dl>
+   `<dl class="kv full">${kv('Department',r.dept)}${kv('Clinic',clinicName(r.clinicId))}${kv('Submitted',r.submittedLocal.replace('T',' ')+(r.late?' (after shift end)':''))}${kv('Summary',r.summary)}${kv('Extra work',r.extra)}${kv('Pending because',r.pendingReason)}${kv('Issues',r.issues)}${kv('Tomorrow',r.tomorrow)}${kv('Cases handled',r.cases)}${kv('Hours',r.hours)}${r.reviewed?kv('Manager review',(r.reviewedBy||'')+(r.reviewNote?': '+r.reviewNote:'')):''}${r.adminVerified?kv('MD verified',(r.adminBy||'')+(r.adminNote?': '+r.adminNote:'')):''}</dl>
    <div><div class="eyebrow">Completed (${r.completedTitles.length})</div><ul class="checklist">${r.completedTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>
    <div><div class="eyebrow">Pending (${r.pendingTitles.length})</div><ul class="checklist">${r.pendingTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>`+
-   (isAdm?F('Admin recommendation / comment',`<textarea name="note">${esc(r.adminNote||'')}</textarea>`,1):canReview?F('Manager comment',`<textarea name="note">${esc(r.reviewNote||'')}</textarea>`,1):(r.reviewNote?`<div class="full note">${esc(r.reviewNote)}</div>`:'')),
-   canReview?fd=>{const by=me()?.name||'Head office admin',at=new Date().toISOString();
+   (isAdm?F('MD recommendation / comment',`<textarea name="note">${esc(r.adminNote||'')}</textarea>`,1):canReview?F('Manager comment',`<textarea name="note">${esc(r.reviewNote||'')}</textarea>`,1):(r.reviewNote?`<div class="full note">${esc(r.reviewNote)}</div>`:'')),
+   canReview?fd=>{const by=me()?.name||'MD',at=new Date().toISOString();
      if(isAdm)put('reports',id,{...r,reviewed:true,reviewedBy:r.reviewedBy||by,reviewedAt:r.reviewedAt||at,adminVerified:true,adminNote:fd.note,adminBy:by,adminAt:at});
      else put('reports',id,{...r,reviewed:true,reviewNote:fd.note,reviewedBy:by,reviewedAt:at});toast(isAdm?'Report verified':'Marked as reviewed')}:null,
    {label:isAdm?(r.adminVerified?'Update verification':'Verify report'):r.reviewed?'Update review':'Mark reviewed',noFocus:1})}
@@ -683,7 +683,7 @@ function complaintForm(id){
    F('Action taken / resolution',`<textarea name="resolution">${esc(c.resolution||'')}</textarea>`,1)+
    F('Patient informed of outcome?',`<select name="informed">${opts([['no','Not yet'],['yes','Yes']],c.informed||'no')}</select>`)+
    (id?`<div class="mini" style="align-self:end">Logged ${esc(new Date(c.createdAt).toLocaleString('en-GB',{timeZone:TZ}))} by ${esc(c.createdBy||'—')}</div>`:''),
-   fd=>{const base=id?{...c}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'Head office'};const n={...base,...fd};
+   fd=>{const base=id?{...c}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'MD'};const n={...base,...fd};
      if((fd.status==='resolved'||fd.status==='closed')&&!base.resolvedAt)n.resolvedAt=new Date().toISOString();
      if(fd.status==='new'||fd.status==='investigating')delete n.resolvedAt;
      put('complaints',id||uid(),n);toast(id?'Complaint updated':'Complaint logged')},
@@ -708,15 +708,15 @@ async function loadSample(){
   const people=[['Mariam (sample)','Clinic Manager','c1','manager','19:00','5'],['Rahul (sample)','Operations','c1','admin','18:00','5'],['Fatima (sample)','HR','c1','staff','17:00','5'],['Joseph (sample)','Accounts','c1','staff','17:00','5'],['Noura (sample)','Marketing','c1','staff','18:00','6'],['Priya (sample)','Insurance','c1','staff','18:00','0'],['Layla (sample)','Aesthetic Coordinator','c1','staff','21:00','2'],['Omar (sample)','Dental Coordinator','c2','staff','21:00','3'],['Grace (sample)','Reception Desk Supervisor','c2','staff','22:00','1'],['Hessa (sample)','Customer Relations','c1','staff','18:00','5'],['Ahmed (sample)','Clinic Manager','c2','manager','19:00','5'],['Sana (sample)','Insurance','c2','staff','18:00','6'],['Khalid (sample)','Clinic Manager','c3','manager','19:00','5'],['Anjali (sample)','Reception Desk Supervisor','c3','staff','22:00','4']];
   const sid={};people.forEach(([n,d,c,r,e,o],i)=>{sid[i]=uid()+'s'+i;P('staff',sid[i],{createdAt:new Date().toISOString(),name:n,dept:d,clinicId:ids[c],role:r,shiftEnd:e,dayOff:o,active:true,startDate:addDays(td,-40)})});
   const T=[[5,'Submit pending Daman pre-approvals','urgent',0,'',''],[5,'Reconcile NextCare rejected claims for September','high',-2,'',''],[11,'Follow up ENBD claim resubmissions','normal',1,'',''],[3,'Close daily cash & card settlement','high',0,'17:00','daily'],[3,'Prepare VAT working for Q3','normal',-3,'',''],[2,'Renew DHA licence for two hygienists','urgent',-1,'',''],[2,'Collect timesheets for payroll','normal',2,'',''],[4,'Post Botox offer creatives on Instagram','normal',0,'15:00',''],[4,'Reply to new Google reviews','low',0,'','daily'],[6,'Call back aesthetic consultation leads','high',0,'14:00',''],[6,'Restock filler inventory report','normal',-1,'',''],[7,'Confirm tomorrow\'s implant cases with lab','high',0,'16:00','daily'],[7,'Chase lab for crown delivery delay','urgent',-2,'',''],[8,'Front desk opening checklist','normal',0,'09:00','daily'],[8,'Update no-show list and rebook','normal',-1,'',''],[9,'Call patient about billing complaint','urgent',0,'12:00',''],[1,'Check AC maintenance schedule for all clinics','normal',1,'',''],[1,'Monthly fire safety inspection log','high',-4,'',''],[0,'Weekly staff huddle notes','normal',2,'','weekly'],[10,'Review Al Barsha insurance rejection rate','high',0,'',''],[12,'Marina reception rota for next week','normal',1,'',''],[13,'Reception phone answering audit','normal',-1,'','']];
-  T.forEach(([p,title,pri,off,tm,rec])=>{const s=people[p];P('tasks',uid()+'t',{title,notes:'',clinicId:ids[s[2]],dept:s[1],assigneeId:sid[p],priority:pri,dueDate:addDays(td,off),dueTime:tm,recurrence:rec||'none',status:'todo',createdAt:new Date(now-864e5*(Math.abs(off)+1)).toISOString(),createdBy:'Head office',carryCount:0,history:[]})});
+  T.forEach(([p,title,pri,off,tm,rec])=>{const s=people[p];P('tasks',uid()+'t',{title,notes:'',clinicId:ids[s[2]],dept:s[1],assigneeId:sid[p],priority:pri,dueDate:addDays(td,off),dueTime:tm,recurrence:rec||'none',status:'todo',createdAt:new Date(now-864e5*(Math.abs(off)+1)).toISOString(),createdBy:'MD',carryCount:0,history:[]})});
   // completed history over the last 3 weeks
   for(let d=1;d<=20;d++){const date=addDays(td,-d);[3,5,7,8,4,6,2].forEach((p,j)=>{if((d+j)%4===0)return;const s=people[p];const late=(d*7+j)%5===0;
-    P('tasks',uid()+'h',{title:['Daily settlement','Claims batch','Lab confirmations','Opening checklist','Social post','Lead call-backs','Attendance check'][j],clinicId:ids[s[2]],dept:s[1],assigneeId:sid[p],priority:j%3===0?'high':'normal',dueDate:date,dueTime:'17:00',recurrence:'none',status:'done',createdAt:new Date(now-864e5*(d+1)).toISOString(),completedAt:new Date(now-864e5*d).toISOString(),completedLocal:(late?addDays(date,1):date)+'T'+(late?'10:00':'15:30'),carryCount:late?1:0,originalDue:late?date:undefined,history:[],verify:'verified',verifiedBy:'Head office admin'})});
-    [3,5,7,8,4].forEach((p,j)=>{if((d+j)%6===0)return;const s=people[p];const date=addDays(td,-d);P('reports',date+'_'+sid[p],{date,staffId:sid[p],clinicId:ids[s[2]],dept:s[1],summary:'Completed assigned work for the day.',extra:'',pendingReason:'',issues:'',tomorrow:'',cases:null,hours:8,completedIds:[],completedTitles:['Assigned daily work'],pendingIds:[],pendingTitles:[],submittedAt:new Date(now-864e5*d).toISOString(),submittedLocal:date+'T'+(j===2?'21:40':'16:55'),late:j===2,reviewed:d>2,reviewedBy:'Mariam (sample)',adminVerified:d>4,adminBy:'Head office admin',createdAt:new Date(now-864e5*d).toISOString()})})}
+    P('tasks',uid()+'h',{title:['Daily settlement','Claims batch','Lab confirmations','Opening checklist','Social post','Lead call-backs','Attendance check'][j],clinicId:ids[s[2]],dept:s[1],assigneeId:sid[p],priority:j%3===0?'high':'normal',dueDate:date,dueTime:'17:00',recurrence:'none',status:'done',createdAt:new Date(now-864e5*(d+1)).toISOString(),completedAt:new Date(now-864e5*d).toISOString(),completedLocal:(late?addDays(date,1):date)+'T'+(late?'10:00':'15:30'),carryCount:late?1:0,originalDue:late?date:undefined,history:[],verify:'verified',verifiedBy:'MD'})});
+    [3,5,7,8,4].forEach((p,j)=>{if((d+j)%6===0)return;const s=people[p];const date=addDays(td,-d);P('reports',date+'_'+sid[p],{date,staffId:sid[p],clinicId:ids[s[2]],dept:s[1],summary:'Completed assigned work for the day.',extra:'',pendingReason:'',issues:'',tomorrow:'',cases:null,hours:8,completedIds:[],completedTitles:['Assigned daily work'],pendingIds:[],pendingTitles:[],submittedAt:new Date(now-864e5*d).toISOString(),submittedLocal:date+'T'+(j===2?'21:40':'16:55'),late:j===2,reviewed:d>2,reviewedBy:'Mariam (sample)',adminVerified:d>4,adminBy:'MD',createdAt:new Date(now-864e5*d).toISOString()})})}
   [[0,'Waiting time','high','new','c1',7,5,'Waited 75 minutes past appointment time for aesthetic consultation.',30],[1,'Billing / pricing','medium','investigating','c2',8,9,'Charged for X-ray that patient says was included in package.',20],[2,'Insurance / claim','high','new','c1',5,9,'Claim rejected, patient asked to pay full amount at reception.',3],[3,'Staff behaviour','low','resolved','c3',13,9,'Felt rushed at front desk during check-in.',90]].forEach(([i,cat,sev,st,c,dp,h,desc,hrs])=>{
     P('complaints',uid()+'c',{patient:['Patient A (sample)','Patient B (sample)','Patient C (sample)','Patient D (sample)'][i],fileNo:String(10230+i),phone:'',channel:CHANNELS[i],clinicId:ids[c],dept:people[dp][1],category:cat,severity:sev,status:st,description:desc,handlerId:sid[h],resolution:st==='resolved'?'Apologised, coaching given to reception team.':'',informed:st==='resolved'?'yes':'no',createdAt:new Date(now-hrs*36e5).toISOString(),createdBy:'Hessa (sample)'})});
   [[2,'Leave','Annual leave 14–18 Nov','Family travel. Joseph will cover payroll queries.',null,'recommended','Cover arranged, recommended.',20,12],[6,'Purchase / expense','Restock dermal filler (10 syringes)','Stock will run out next week based on bookings.',1850,'pending','',1,4],[9,'Patient discount / refund','Refund for cancelled whitening session','Patient B complaint, session cancelled by clinic.',600,'pending','',0,2],[8,'Overtime','Weekend overtime for reception (2 staff)','Eid rush, extra walk-ins expected.',null,'approved','Recommended.',3,50]].forEach(([p,type,title,details,amount,st,mn,nb,hrs])=>{const s=people[p];
-    P('requests',uid()+'r',{type,title,details,amount,neededBy:addDays(td,nb),staffId:sid[p],clinicId:ids[s[2]],dept:s[1],status:st,mgrNote:mn,mgrBy:mn?'Mariam (sample)':'',adminNote:st==='approved'?'Approved for this weekend only.':'',adminBy:st==='approved'?'Head office admin':'',createdAt:new Date(now-hrs*36e5).toISOString()})});
+    P('requests',uid()+'r',{type,title,details,amount,neededBy:addDays(td,nb),staffId:sid[p],clinicId:ids[s[2]],dept:s[1],status:st,mgrNote:mn,mgrBy:mn?'Mariam (sample)':'',adminNote:st==='approved'?'Approved for this weekend only.':'',adminBy:st==='approved'?'MD':'',createdAt:new Date(now-hrs*36e5).toISOString()})});
   toast('Loading sample data…');for(let i=0;i<W.length;i+=8){await Promise.all(W.slice(i,i+8).map(([c,id,o])=>put(c,id,o)))}
   UI.actingAs='';UI.clinic='';saveUI();toast('Sample data loaded. Use “View as” to see a staff view.')}
 async function clearSample(){const W=[];COLS.forEach(c=>Object.entries(S[c]).forEach(([id,x])=>{if(x.sample)W.push([c,id])}));
@@ -751,7 +751,7 @@ const ACT={
   staffForm:d=>{if(!clinicArr().length){toast('Add a clinic first.');clinicForm();return}staffForm(d.id)},
   delClinic:(d,b)=>{if(staffArr().some(s=>s.clinicId===d.id)){toast('Move or delete this clinic’s staff first.');return}confirmBtn(b,()=>{del('clinics',d.id);dlg.close()})},
   delStaff:(d,b)=>confirmBtn(b,()=>{if(loginOf(d.id))callFn({action:'remove',staff_id:d.id}).then(loadProfiles).catch(e=>toast(e.message));del('staff',d.id);if(UI.actingAs===d.id){UI.actingAs='';saveUI()}dlg.close()}),
-  verifyTask:d=>{const t=S.tasks[d.id];put('tasks',d.id,{...t,verify:'verified',verifiedBy:me()?.name||'Head office admin',verifiedAt:new Date().toISOString(),history:[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'Head office admin',what:'Verified'}].slice(-20)});toast('Verified')},
+  verifyTask:d=>{const t=S.tasks[d.id];put('tasks',d.id,{...t,verify:'verified',verifiedBy:me()?.name||'MD',verifiedAt:new Date().toISOString(),history:[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Verified'}].slice(-20)});toast('Verified')},
   verifyAll:()=>{const L=toVerify();L.forEach(t=>ACT.verifyTask({id:t.id}));toast(`${L.length} tasks verified`)},
   returnTask:d=>returnForm(d.id),
   newRequest:()=>requestForm(),

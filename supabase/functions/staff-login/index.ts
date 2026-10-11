@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 // Creates and manages staff logins. Auth is checked here: the very first call may create the
-// head office admin (with the one-time setup code); every later call must come from a signed-in admin.
+// MD (with the one-time setup code); every later call must come from a signed-in admin.
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
   if (action === "bootstrap") {
     const { count } = await admin.from("profiles").select("user_id", { count: "exact", head: true }).eq("role", "admin");
-    if ((count ?? 0) > 0) return json({ error: "An admin account already exists. Sign in instead." }, 403);
+    if ((count ?? 0) > 0) return json({ error: "An MD account already exists. Sign in instead." }, 403);
     const { data: sc } = await admin.from("app_secrets").select("v").eq("k", "setup_code").maybeSingle();
     if (!sc || String(body.setup_code || "").trim().toUpperCase() !== sc.v) return json({ error: "The setup code is not correct." }, 403);
     if (!validUser) return json({ error: "Username must be 3-30 letters, numbers, dots or dashes." }, 400);
@@ -41,12 +41,12 @@ Deno.serve(async (req) => {
     return json({ ok: true, username });
   }
 
-  // Every other action needs a signed-in head office admin.
+  // Every other action needs a signed-in MD.
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const { data: who } = await admin.auth.getUser(token);
   if (!who?.user) return json({ error: "Please sign in again." }, 401);
   const { data: me } = await admin.from("profiles").select("role").eq("user_id", who.user.id).maybeSingle();
-  if (me?.role !== "admin") return json({ error: "Only the head office admin can manage logins." }, 403);
+  if (me?.role !== "admin") return json({ error: "Only the MD can manage logins." }, 403);
 
   if (action === "change_own") {
     if (!validPass) return json({ error: "Password must be at least 8 characters." }, 400);
