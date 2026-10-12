@@ -99,6 +99,7 @@ textarea{min-height:70px;resize:vertical}
 .row.by-hoa{background:color-mix(in srgb,var(--orange-soft) 80%,transparent);box-shadow:inset 4px 0 0 var(--orange);border-radius:8px;padding-left:10px}
 .chip.by-md{background:var(--red-soft);color:var(--red);border:1px solid var(--red);font-weight:600}
 .chip.by-hoa{background:var(--orange-soft);color:var(--orange);border:1px solid var(--orange);font-weight:600}
+.upd{background:var(--surface-2,rgba(127,127,127,.12));border-radius:6px;padding:1px 8px;color:var(--ink)}
 .grid2 .row{grid-template-columns:auto minmax(0,1fr)}.grid2 .row .acts{grid-column:2;justify-content:flex-start}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;letter-spacing:.02em}
 .p-urgent{background:var(--red-soft);color:var(--red)}
@@ -219,7 +220,9 @@ const nowKey=()=>{const d=dubai();return d.date+'T'+d.time};
 function addDays(s,n){const d=new Date(s+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10)}
 function addMonths(s,n){const d=new Date(s+'T00:00:00Z');const day=d.getUTCDate();d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+n);const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();d.setUTCDate(Math.min(day,last));return d.toISOString().slice(0,10)}
 const weekday=s=>new Date(s+'T00:00:00Z').getUTCDay();
-function fmtDate(s){if(!s)return'—';const d=new Date(s+'T00:00:00Z');const t=today();if(s===t)return'Today';if(s===addDays(t,-1))return'Yesterday';if(s===addDays(t,1))return'Tomorrow';return d.toLocaleDateString('en-GB',{timeZone:'UTC',day:'numeric',month:'short'})}
+const dmy=s=>{if(!s)return'';const m=String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}/${m[2]}/${m[1].slice(2)}`:String(s)};
+const dmyt=iso=>{if(!iso)return'';const p=Object.fromEntries(new Intl.DateTimeFormat('en-GB',{timeZone:TZ,day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date(iso)).map(x=>[x.type,x.value]));return`${p.day}/${p.month}/${p.year} ${p.hour}:${p.minute}`};
+function fmtDate(s){return s?dmy(s):'—'}
 function hoursSince(iso){return(Date.now()-new Date(iso).getTime())/36e5}
 function ago(iso){const h=hoursSince(iso);if(h<1)return Math.max(1,Math.round(h*60))+'m';if(h<48)return Math.round(h)+'h';return Math.round(h/24)+'d'}
 
@@ -315,11 +318,12 @@ function eventsFor(col,o,n){
   const myId=PROFILE?.staff_id||'',role=PROFILE?.role,my=S.staff[myId]||{},myName=my.name||(role==='admin'?'MD':'');
   const out=[],add=(title,body,view,urgent)=>out.push({title,body:String(body||'').slice(0,240),view,urgent:!!urgent});
   const who=id=>S.staff[id]?.name||'Someone',sameDept=x=>my.dept&&x.dept===my.dept&&(!x.clinicId||!my.clinicId||x.clinicId===my.clinicId);
-  if(col==='tasks'){const due=n.dueDate?` · due ${n.dueDate}${n.dueTime?' '+n.dueTime:''}`:'';
+  if(col==='tasks'){const due=n.dueDate?` · due ${dmy(n.dueDate)}${n.dueTime?' '+n.dueTime:''}`:'';
     if(myId&&n.assigneeId===myId&&o?.assigneeId!==myId)add(n.priority==='urgent'?'Urgent task for you':n.priority==='high'?'High-priority task for you':'New task for you',`${n.title}${due}${n.createdBy?' · from '+n.createdBy:''}${n.notes?'\n'+n.notes:''}`,'myday',n.priority==='urgent'||n.priority==='high');
     else if(myId&&n.assigneeId===myId&&o){const h=n.history||[],oh=o.history||[],last=h[h.length-1];
       if(h.length>oh.length&&last&&last.by!==myName)add('Update on your task',`${n.title}\n${last.what} · ${last.by}`,'myday',n.verify==='returned');
       else if((n.notes||'')!==(o.notes||''))add('Task notes updated',`${n.title}\n${n.notes||''}`,'myday')}
+    {const h=n.history||[],last=h[h.length-1];if(o&&n.assigneeId!==myId&&myName&&n.createdBy===myName&&h.length>(o.history||[]).length&&last&&last.by!==myName&&/^Update:/.test(last.what))add(n.status==='blocked'?'Task blocked, needs help':'Progress update',`${n.title} · ${who(n.assigneeId)}\n${last.what.replace(/^Update: /,'')}`,'tasks',n.status==='blocked')}
     if(!n.assigneeId&&!o&&sameDept(n))add('New task for your department',`${n.title}${due}`,'myday',n.priority==='urgent');
     const aRole=S.staff[n.assigneeId]?.role;
     if(n.status==='done'&&o&&o.status!=='done'&&n.assigneeId!==myId&&n.verify!=='verified'){
@@ -381,7 +385,7 @@ function worksOn(s,date){return s.active!==false&&(s.dayOff==null||s.dayOff===''
 function reportFor(sid,date){return S.reports[date+'_'+sid]}
 
 function carryOver(t){const old=t.dueDate;const nt={...t};delete nt.id;nt.originalDue=t.originalDue||old;nt.carryCount=(t.carryCount||0)+1;nt.dueDate=today();
-  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:`Carried over from ${old}`}].slice(-20);return put('tasks',t.id,nt)}
+  nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:`Carried over from ${dmy(old)}`}].slice(-20);return put('tasks',t.id,nt)}
 function setStatus(t,st){const nt={...t};delete nt.id;nt.status=st;
   nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Status: '+STATUSL[st]}].slice(-20);
   if(st==='done'){nt.completedAt=new Date().toISOString();nt.completedLocal=nowKey();nt.verify='pending';delete nt.verifiedBy;delete nt.verifiedAt;
@@ -434,7 +438,7 @@ function render(){
   window.scrollTo(0,y)}
 function topbar(){
   const titles={admin:'MD review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
-  const d=new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const d=new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long'})+' '+dmy(today());
   return`<div class="topbar"><div><div class="eyebrow">${esc(d)}</div><h1>${UI.view==='admin'&&myRole()==='manager'?'Verify & approve':titles[UI.view]}</h1></div>
   <div class="who">${adminOK?'':`<button class="btn sm" data-act="signOut" title="Signed in as ${esc(PROFILE.username)}">Sign out</button>`}${!adminOK?'':`<label class="f">View as<select id="actingAs" data-change="acting"><option value="">MD (you)</option>${staffArr().map(s=>`<option value="${s.id}"${s.id===UI.actingAs?' selected':''}>${esc(s.name)} · ${esc(s.dept)}</option>`).join('')}</select></label>`}
   ${myRole()!=='staff'?`<label class="f">Clinic<select data-change="clinic"><option value="">All clinics</option>${clinicArr().map(c=>`<option value="${c.id}"${c.id===UI.clinic?' selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`:''}</div></div>`}
@@ -449,7 +453,7 @@ function taskRow(t,o={}){
   const missed=isMissed(t),over=isOverdue(t);
   const due=t.dueDate?`${fmtDate(t.dueDate)}${t.dueTime?' '+t.dueTime:''}`:'No due date';
   const acts=o.verify?`<button class="btn sm primary" data-act="verifyTask" data-id="${t.id}">Verify</button><button class="btn sm" data-act="returnTask" data-id="${t.id}">Return with note</button>${myRole()==='manager'?`<button class="btn sm" data-act="referTask" data-id="${t.id}">Refer to MD</button>`:''}`:o.compact?'':t.status==='done'?`<button class="btn sm" data-act="reopen" data-id="${t.id}">Reopen</button>`:
-   `${missed?`<button class="btn sm" data-act="carry" data-id="${t.id}">Carry to today</button>`:''}${t.status==='todo'?`<button class="btn sm" data-act="start" data-id="${t.id}">Start</button>`:''}<button class="btn sm primary" data-act="done" data-id="${t.id}">Done</button>`;
+   `${missed?`<button class="btn sm" data-act="carry" data-id="${t.id}">Carry to today</button>`:''}${t.status==='todo'?`<button class="btn sm" data-act="start" data-id="${t.id}">Start</button>`:`<button class="btn sm" data-act="taskUpdate" data-id="${t.id}">Add update</button>`}<button class="btn sm primary" data-act="done" data-id="${t.id}">Done</button>`;
   const ab=assigner(t);
   return`<div class="row ${ab?ab.k:''}"><div class="pbar ${t.priority}" title="${PRIL[t.priority]} priority"></div>
   <div style="min-width:0"><div class="t">${esc(t.title)}</div><div class="m">
@@ -457,7 +461,8 @@ function taskRow(t,o={}){
    ${missed?`<span class="missed-tag">Missed · ${esc(due)}</span>`:over?`<span class="missed-tag">Overdue · ${esc(due)}</span>`:`<span>Due ${esc(due)}</span>`}
    ${t.status==='done'?(t.verify==='verified'?`<span class="chip ok" title="${esc(t.verifiedBy||'')}">Verified${t.verifiedRole?' · '+esc(t.verifiedRole):''}</span>`:t.verify==='referred'?`<span class="chip s-progress" title="${esc(t.referNote||'')}">Referred to MD</span>`:'<span class="chip muted">Awaiting verification</span>'):''}
    ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by ${esc(t.returnedBy||'MD')}: ${esc(t.recommendation)}</span>`:''}
-   ${t.carryCount?`<span class="chip goldc" title="Originally due ${esc(t.originalDue)}">Carried ×${t.carryCount}</span>`:''}
+   ${t.lastUpdate&&t.status!=='done'?`<span class="upd" title="${esc(t.lastUpdate.by)} · ${esc(when(t.lastUpdate.at))}">📝 ${esc(t.lastUpdate.text)} · ${esc(ago(t.lastUpdate.at))}</span>`:''}
+   ${t.carryCount?`<span class="chip goldc" title="Originally due ${esc(dmy(t.originalDue))}">Carried ×${t.carryCount}</span>`:''}
    ${o.noWho?'':`<span>${esc(staffName(t.assigneeId))}</span>`}<span>${esc(t.dept||'')}</span><span>${esc(clinicName(t.clinicId))}</span>
    ${t.recurrence&&t.recurrence!=='none'?`<span>↻ ${esc(REC.find(r=>r[0]===t.recurrence)[1])}</span>`:''}</div></div>
   <div class="acts">${acts}${myRole()==='staff'?`<button class="btn sm ghost" data-act="viewTask" data-id="${t.id}">View</button>`:`<button class="btn sm ghost" data-act="editTask" data-id="${t.id}" aria-label="Edit task">Edit</button>`}</div></div>`}
@@ -547,7 +552,7 @@ function vReports(){
 function complaintRow(c){const h=hoursSince(c.createdAt),open=c.status==='new'||c.status==='investigating',breach=open&&h>SEVH[c.severity];
   return`<div class="row"><div class="pbar ${c.severity==='critical'?'urgent':c.severity==='high'?'high':c.severity==='medium'?'normal':'low'}"></div><div style="min-width:0"><div class="t">${esc(c.patient)}${c.fileNo?` <span class="mini mono">#${esc(c.fileNo)}</span>`:''} · ${esc(c.category)}</div>
   <div class="m"><span class="chip ${c.severity==='critical'||c.severity==='high'?'bad':'warnc'}">${SEVL[c.severity]}</span><span class="chip ${c.status==='new'?'s-blocked':c.status==='investigating'?'s-progress':'s-done'}">${CSTATL[c.status]}</span>
-  <span ${breach?'class="missed-tag"':''}>${open?`Open ${ago(c.createdAt)} · target ${SEVH[c.severity]}h`:`Logged ${esc(c.createdAt.slice(0,10))}`}</span><span>${esc(clinicName(c.clinicId))}</span><span>${esc(c.dept||'')}</span><span>Handler: ${esc(staffName(c.handlerId))}</span></div></div>
+  <span ${breach?'class="missed-tag"':''}>${open?`Open ${ago(c.createdAt)} · target ${SEVH[c.severity]}h`:`Logged ${esc(dmy(c.createdAt))}`}</span><span>${esc(clinicName(c.clinicId))}</span><span>${esc(c.dept||'')}</span><span>Handler: ${esc(staffName(c.handlerId))}</span></div></div>
   <div class="acts"><button class="btn sm" data-act="editComplaint" data-id="${c.id}">Open</button></div></div>`}
 function vComplaints(){
   let C=Object.entries(S.complaints).map(([id,c])=>({id,...c})).filter(inClinic);const f=UI.cf;
@@ -590,7 +595,7 @@ function canAct(r){const role=myRole();if(role==='admin')return waiting(r);if(ro
 const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&&inClinic(t)&&!(myRole()==='manager'&&(t.assigneeId===me()?.id||t.verify==='referred'))).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
 const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>(myRole()==='manager'?!r.reviewed&&r.staffId!==me()?.id:!r.adminVerified)&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
 const aed=n=>n||n===0?'AED '+Number(n).toLocaleString('en-US'):'';
-const when=iso=>iso?new Date(iso).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
+const when=iso=>dmyt(iso);
 const rstat=r=>r.status==='referred'&&r.sendTo==='md'?['Waiting for MD','s-progress']:(RSTAT[r.status]||['','']);
 function requestRow(r){const[l,c]=rstat(r);
   return`<div class="row"><div class="pbar ${waiting(r)?'high':r.status==='approved'?'low':'urgent'}"></div><div style="min-width:0"><div class="t">${esc(r.title)}${r.amount?` <span class="mono" style="font-weight:500">· ${esc(aed(r.amount))}</span>`:''}</div>
@@ -613,7 +618,7 @@ function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “
    fd=>{const byMgr=m.role!=='staff',toMd=byMgr||fd.sendTo==='md';put('requests',uid(),{...fd,sendTo:toMd?'md':'hoa',amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:toMd?'referred':'pending',mgrNote:byMgr?'Raised by head office admin':'',createdAt:new Date().toISOString()});toast(toMd?'Sent to the MD':'Sent to head office admin')},{label:'Send request'})}
 function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
   const btns=role==='admin'?`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn primary" type="submit" value="yes">Approve</button>`:`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn" type="submit" value="refer">Refer to MD</button><button class="btn primary" type="submit" value="yes">Approve</button>`;
-  modal(r.title,`<dl class="kv full">${kv('Status',rstat(r)[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',r.neededBy)}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Referred to MD',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Decision',r.adminBy||r.adminNote?`${r.adminBy||''} (${r.decidedRole||'MD'})${r.adminNote?': '+r.adminNote:''}`:'')}</dl>`+
+  modal(r.title,`<dl class="kv full">${kv('Status',rstat(r)[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',dmy(r.neededBy))}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Referred to MD',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Decision',r.adminBy||r.adminNote?`${r.adminBy||''} (${r.decidedRole||'MD'})${r.adminNote?': '+r.adminNote:''}`:'')}</dl>`+
    (act?F(role==='admin'?'MD comment':'Comment (required when referring to the MD)',`<textarea name="note"></textarea>`,1):''),
    act?(fd,choice)=>{if(!choice)return false;const by=me()?.name||'MD',at=new Date().toISOString();
      if(choice==='refer'){if(!fd.note.trim()){toast('Add a note for the MD.');return false}put('requests',id,{...r,status:'referred',mgrNote:fd.note,mgrBy:by,mgrAt:at});toast('Referred to the MD');return}
@@ -622,6 +627,12 @@ function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),
 function referForm(id){const t=S.tasks[id];
   modal('Refer to MD for approval',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. The MD will verify or return it.</div>`+F('Note for the MD',`<textarea name="note" required></textarea>`,1),
    fd=>{const by=me()?.name||'Head office admin';put('tasks',id,{...t,verify:'referred',referNote:fd.note,referredBy:by,history:[...(t.history||[]),{at:new Date().toISOString(),by,what:'Referred to MD: '+fd.note}].slice(-20)});toast('Referred to the MD')},{label:'Refer to MD'})}
+function updateForm(id){const t=S.tasks[id];if(!t)return;const prev=(t.history||[]).filter(h=>/^Update:/.test(h.what)).slice(-5).reverse();
+  modal('Progress update',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}</div>`+
+   F('What has been done / current status',`<textarea name="text" required placeholder="e.g. Called Daman, waiting for approval reference"></textarea>`,1)+
+   F('Task is',`<select name="status">${opts([['progress','In progress'],['blocked','Blocked (needs help)']],t.status==='blocked'?'blocked':'progress')}</select>`)+
+   (prev.length?`<div class="full"><div class="eyebrow">Earlier updates</div><ul class="checklist">${prev.map(h=>`<li>${esc(h.what.replace(/^Update: /,''))} · ${esc(h.by)} · ${esc(dmyt(h.at))}</li>`).join('')}</ul></div>`:''),
+   fd=>{const by=me()?.name||'MD',at=new Date().toISOString();put('tasks',id,{...t,status:fd.status,lastUpdate:{text:fd.text,by,at},history:[...(t.history||[]),{at,by,what:'Update: '+fd.text}].slice(-20)});toast('Update saved')},{label:'Save update'})}
 function returnForm(id){const t=S.tasks[id];
   modal('Return task with a recommendation',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. It goes back on their list as To do with your note.</div>`+
    F('What needs to be done',`<textarea name="note" required placeholder="e.g. Attach the signed approval letter before closing"></textarea>`,1)+F('New due date',`<input type="date" name="due" value="${today()}">`),
@@ -688,7 +699,7 @@ const F=(label,inner,full)=>`<label class="f${full?' full':''}">${label}${inner}
 function taskView(id){const t=S.tasks[id];if(!t)return;const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';const ab=assigner(t);
   const hist=(t.history||[]).slice().reverse().slice(0,8);
   modal(t.title,`<dl class="kv full">${kv('Assigned by',ab?ab.label.replace(/^Assigned by /,''):(t.createdBy||''))}${kv('Assigned to',staffName(t.assigneeId))}${kv('Priority',PRIL[t.priority])}${kv('Status',STATUSL[t.status])}${kv('Due',(t.dueDate||'')+(t.dueTime?' '+t.dueTime:''))}${kv('Department',t.dept)}${kv('Clinic',clinicName(t.clinicId))}${kv('Repeats',t.recurrence&&t.recurrence!=='none'?REC.find(r=>r[0]===t.recurrence)?.[1]:'')}${kv('Notes / instructions',t.notes)}${kv('Returned with note',t.verify==='returned'?t.recommendation:'')}</dl>`+
-   (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(new Date(h.at).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</li>`).join('')}</ul></div>`:'')+
+   (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(dmyt(h.at))}</li>`).join('')}</ul></div>`:'')+
    `<div class="full mini">Only the MD or a head office admin can change this task. Use Raise request if something needs to change.</div>`,null)}
 function taskForm(id,self){
   if(id&&myRole()==='staff')return taskView(id);
@@ -706,7 +717,7 @@ function taskForm(id,self){
    F('Repeats',`<select name="recurrence">${opts(REC,t.recurrence||'none')}</select>`)+
    `<div class="mini" style="align-self:end">Repeating tasks create the next one when marked done.</div>`+
    F('Notes / instructions',`<textarea name="notes">${esc(t.notes||'')}</textarea>`,1)+
-   (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(new Date(h.at).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</li>`).join('')}</ul></div>`:''),
+   (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(dmyt(h.at))}</li>`).join('')}</ul></div>`:''),
    fd=>{const base=id?{...t}:{createdAt:new Date().toISOString(),createdBy:myRole()==='admin'?(S.staff[PROFILE?.staff_id]?.name||'MD'):(me()?.name||'MD'),createdByRole:myRole(),carryCount:0,history:[]};
      if(myRole()==='staff'&&S.staff[fd.assigneeId]?.role!=='staff'&&fd.assigneeId!==base.assigneeId){toast('Staff cannot give tasks to the MD or head office admins. Use Raise request instead.');return false}
      const wasDone=base.status==='done';const n={...base,...fd};
@@ -746,7 +757,7 @@ function viewReport(id){
   const r=S.reports[id];if(!r)return;const s=S.staff[r.staffId]||{name:'Former staff'};const role=myRole(),canReview=role==='manager'||role==='admin',isAdm=role==='admin';
   const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
   modal(`${s.name} · ${fmtDate(r.date)}`,
-   `<dl class="kv full">${kv('Department',r.dept)}${kv('Clinic',clinicName(r.clinicId))}${kv('Submitted',r.submittedLocal.replace('T',' ')+(r.late?' (after shift end)':''))}${kv('Summary',r.summary)}${kv('Extra work',r.extra)}${kv('Pending because',r.pendingReason)}${kv('Issues',r.issues)}${kv('Tomorrow',r.tomorrow)}${kv('Cases handled',r.cases)}${kv('Hours',r.hours)}${r.reviewed?kv('Admin review',(r.reviewedBy||'')+(r.reviewNote?': '+r.reviewNote:'')):''}${r.adminVerified?kv('MD verified',(r.adminBy||'')+(r.adminNote?': '+r.adminNote:'')):''}</dl>
+   `<dl class="kv full">${kv('Department',r.dept)}${kv('Clinic',clinicName(r.clinicId))}${kv('Submitted',dmy(r.submittedLocal)+' '+r.submittedLocal.slice(11)+(r.late?' (after shift end)':''))}${kv('Summary',r.summary)}${kv('Extra work',r.extra)}${kv('Pending because',r.pendingReason)}${kv('Issues',r.issues)}${kv('Tomorrow',r.tomorrow)}${kv('Cases handled',r.cases)}${kv('Hours',r.hours)}${r.reviewed?kv('Admin review',(r.reviewedBy||'')+(r.reviewNote?': '+r.reviewNote:'')):''}${r.adminVerified?kv('MD verified',(r.adminBy||'')+(r.adminNote?': '+r.adminNote:'')):''}</dl>
    <div><div class="eyebrow">Completed (${r.completedTitles.length})</div><ul class="checklist">${r.completedTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>
    <div><div class="eyebrow">Pending (${r.pendingTitles.length})</div><ul class="checklist">${r.pendingTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>`+
    (isAdm?F('MD recommendation / comment',`<textarea name="note">${esc(r.adminNote||'')}</textarea>`,1):canReview?F('Admin comment',`<textarea name="note">${esc(r.reviewNote||'')}</textarea>`,1):(r.reviewNote?`<div class="full note">${esc(r.reviewNote)}</div>`:'')),
@@ -767,7 +778,7 @@ function complaintForm(id){
    F('Handled by (Customer Relations)',`<select name="handlerId">${opts(staffArr().map(s=>[s.id,`${s.name} · ${s.dept}`]),c.handlerId,'Unassigned')}</select>`)+F('Status',`<select name="status">${opts(CSTAT,c.status)}</select>`)+
    F('Action taken / resolution',`<textarea name="resolution">${esc(c.resolution||'')}</textarea>`,1)+
    F('Patient informed of outcome?',`<select name="informed">${opts([['no','Not yet'],['yes','Yes']],c.informed||'no')}</select>`)+
-   (id?`<div class="mini" style="align-self:end">Logged ${esc(new Date(c.createdAt).toLocaleString('en-GB',{timeZone:TZ}))} by ${esc(c.createdBy||'—')}</div>`:''),
+   (id?`<div class="mini" style="align-self:end">Logged ${esc(dmyt(c.createdAt))} by ${esc(c.createdBy||'—')}</div>`:''),
    fd=>{const base=id?{...c}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'MD'};const n={...base,...fd};
      if((fd.status==='resolved'||fd.status==='closed')&&!base.resolvedAt)n.resolvedAt=new Date().toISOString();
      if(fd.status==='new'||fd.status==='investigating')delete n.resolvedAt;
@@ -775,7 +786,7 @@ function complaintForm(id){
    {left:id&&myRole()!=='staff'?`<button type="button" class="btn danger" data-act="delComplaint" data-id="${id}">Delete</button>`:'',label:id?'Save':'Log complaint'})}
 
 function complaintView(id){const c=S.complaints[id];if(!c)return;const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';const mine=c.handlerId&&c.handlerId===me()?.id;
-  modal('Complaint',`<dl class="kv full">${kv('Patient',c.patient)}${kv('File / MRN no.',c.fileNo)}${kv('Contact',c.phone)}${kv('Received via',c.channel)}${kv('Clinic',clinicName(c.clinicId))}${kv('Department',c.dept)}${kv('Category',c.category)}${kv('Severity',SEVL[c.severity])}${kv('What happened',c.description)}${kv('Handled by',c.handlerId?staffName(c.handlerId):'Unassigned')}${kv('Logged',new Date(c.createdAt).toLocaleString('en-GB',{timeZone:TZ})+' by '+(c.createdBy||'—'))}${mine?'':kv('Status',CSTATL[c.status]||c.status)+kv('Resolution',c.resolution)}</dl>`+
+  modal('Complaint',`<dl class="kv full">${kv('Patient',c.patient)}${kv('File / MRN no.',c.fileNo)}${kv('Contact',c.phone)}${kv('Received via',c.channel)}${kv('Clinic',clinicName(c.clinicId))}${kv('Department',c.dept)}${kv('Category',c.category)}${kv('Severity',SEVL[c.severity])}${kv('What happened',c.description)}${kv('Handled by',c.handlerId?staffName(c.handlerId):'Unassigned')}${kv('Logged',dmyt(c.createdAt)+' by '+(c.createdBy||'—'))}${mine?'':kv('Status',CSTATL[c.status]||c.status)+kv('Resolution',c.resolution)}</dl>`+
    (mine?F('Status',`<select name="status">${opts(CSTAT,c.status)}</select>`)+F('Patient informed of outcome?',`<select name="informed">${opts([['no','Not yet'],['yes','Yes']],c.informed||'no')}</select>`)+F('Action taken / resolution',`<textarea name="resolution">${esc(c.resolution||'')}</textarea>`,1):''),
    mine?fd=>{const n={...c,status:fd.status,informed:fd.informed,resolution:fd.resolution};if((fd.status==='resolved'||fd.status==='closed')&&!c.resolvedAt)n.resolvedAt=new Date().toISOString();if(fd.status==='new'||fd.status==='investigating')delete n.resolvedAt;put('complaints',id,n);toast('Complaint updated')}:null,{label:'Update progress',noFocus:true})}
 function clinicForm(id){const c=id?S.clinics[id]:{};
@@ -844,6 +855,7 @@ const ACT={
   verifyTask:d=>{const t=S.tasks[d.id];const vr=myRole()==='admin'?'MD':'Head office admin';put('tasks',d.id,{...t,verify:'verified',verifiedBy:me()?.name||'MD',verifiedRole:vr,verifiedAt:new Date().toISOString(),history:[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Verified by '+vr}].slice(-20)});toast('Verified')},
   verifyAll:()=>{const L=toVerify();L.forEach(t=>ACT.verifyTask({id:t.id}));toast(`${L.length} tasks verified`)},
   returnTask:d=>returnForm(d.id),
+  taskUpdate:d=>updateForm(d.id),
   referTask:d=>referForm(d.id),
   newRequest:()=>requestForm(),
   decide:d=>decideForm(d.id),
