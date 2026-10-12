@@ -460,7 +460,7 @@ function taskRow(t,o={}){
    ${t.carryCount?`<span class="chip goldc" title="Originally due ${esc(t.originalDue)}">Carried ×${t.carryCount}</span>`:''}
    ${o.noWho?'':`<span>${esc(staffName(t.assigneeId))}</span>`}<span>${esc(t.dept||'')}</span><span>${esc(clinicName(t.clinicId))}</span>
    ${t.recurrence&&t.recurrence!=='none'?`<span>↻ ${esc(REC.find(r=>r[0]===t.recurrence)[1])}</span>`:''}</div></div>
-  <div class="acts">${acts}<button class="btn sm ghost" data-act="editTask" data-id="${t.id}" aria-label="Edit task">Edit</button></div></div>`}
+  <div class="acts">${acts}${myRole()==='staff'?`<button class="btn sm ghost" data-act="viewTask" data-id="${t.id}">View</button>`:`<button class="btn sm ghost" data-act="editTask" data-id="${t.id}" aria-label="Edit task">Edit</button>`}</div></div>`}
 
 function emptySetup(){return`<div class="empty"><h2>Set up your clinics and team first</h2><p>Add your clinics and staff, then assign tasks. Or load clearly marked sample data to try every screen, and remove it later in one click.</p><div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center"><button class="btn primary" data-act="nav" data-v="setup">Add clinics &amp; staff</button>${adminOK?'<button class="btn" data-act="loadSample">Load sample data</button>':''}</div></div>`}
 
@@ -506,7 +506,7 @@ function vMyDay(){
   const r=reportFor(m.id,td);const mgr=managerOf(m.clinicId);
   const late=!r&&dubai().time>(m.shiftEnd||'18:00');
   return`<section class="panel"><div class="panel-head"><div><h2>${esc(m.name)}</h2><p>${esc(m.dept)} · ${esc(clinicName(m.clinicId))} · shift ends ${esc(m.shiftEnd||'18:00')} · reports to ${esc(mgr?.name||'head office admin')}</p></div>
-   <div style="display:flex;gap:8px;flex-wrap:wrap">${r?`<span class="chip ${r.late?'warnc':'ok'}">Report submitted ${esc(r.submittedLocal.slice(11))}${r.reviewed?' · reviewed':''}</span><button class="btn sm" data-act="reportForm">${r.reviewed?'View report':'Edit report'}</button>`:`<button class="btn primary" data-act="reportForm">Submit end-of-shift report</button>`}
+   <div style="display:flex;gap:8px;flex-wrap:wrap">${r?`<span class="chip ${r.late?'warnc':'ok'}">Report submitted ${esc(r.submittedLocal.slice(11))}${r.reviewed?' · reviewed':''}</span><button class="btn sm" data-act="reportForm">${r.reviewed||myRole()==='staff'?'View report':'Edit report'}</button>`:`<button class="btn primary" data-act="reportForm">Submit end-of-shift report</button>`}
    <button class="btn" data-act="newTask" data-self="1">Add a task</button><button class="btn" data-act="newRequest">Raise request</button></div></div>
    ${late?`<div class="banner" style="background:var(--red-soft);color:var(--red)">Your shift has ended and today's report isn't in yet.</div>`:''}</section>
   ${missed.length?`<section class="panel"><div class="sec-title"><h2>Missed, carry these forward</h2><span class="cnt">${missed.length}</span></div><div class="list">${missed.map(t=>taskRow(t,{noWho:1})).join('')}</div></section>`:''}
@@ -685,7 +685,13 @@ dlgForm.addEventListener('submit',e=>{e.preventDefault();if(!onSubmit)return;
   const fd=Object.fromEntries(new FormData(dlgForm));if(onSubmit(fd,e.submitter&&e.submitter.value)!==false)dlg.close()});
 const F=(label,inner,full)=>`<label class="f${full?' full':''}">${label}${inner}</label>`;
 
+function taskView(id){const t=S.tasks[id];if(!t)return;const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';const ab=assigner(t);
+  const hist=(t.history||[]).slice().reverse().slice(0,8);
+  modal(t.title,`<dl class="kv full">${kv('Assigned by',ab?ab.label.replace(/^Assigned by /,''):(t.createdBy||''))}${kv('Assigned to',staffName(t.assigneeId))}${kv('Priority',PRIL[t.priority])}${kv('Status',STATUSL[t.status])}${kv('Due',(t.dueDate||'')+(t.dueTime?' '+t.dueTime:''))}${kv('Department',t.dept)}${kv('Clinic',clinicName(t.clinicId))}${kv('Repeats',t.recurrence&&t.recurrence!=='none'?REC.find(r=>r[0]===t.recurrence)?.[1]:'')}${kv('Notes / instructions',t.notes)}${kv('Returned with note',t.verify==='returned'?t.recommendation:'')}</dl>`+
+   (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(new Date(h.at).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</li>`).join('')}</ul></div>`:'')+
+   `<div class="full mini">Only the MD or a head office admin can change this task. Use Raise request if something needs to change.</div>`,null)}
 function taskForm(id,self){
+  if(id&&myRole()==='staff')return taskView(id);
   const t=id?S.tasks[id]:{priority:'normal',status:'todo',dueDate:today(),dueTime:'',recurrence:'none',clinicId:self?me().clinicId:(UI.clinic||''),dept:self?me().dept:'',assigneeId:self?me().id:''};
   const hist=(t.history||[]).slice().reverse().slice(0,6);
   modal(id?'Edit task':'New task',
@@ -718,7 +724,7 @@ function reportForm(){
   const mine=taskArr().filter(t=>t.assigneeId===m.id);
   const done=mine.filter(t=>t.status==='done'&&(t.completedLocal||'').startsWith(td));
   const pending=mine.filter(t=>isOpen(t)&&t.dueDate<=td).sort(taskSort);
-  const mgr=managerOf(m.clinicId);const ro=!!r?.reviewed;
+  const mgr=managerOf(m.clinicId);const ro=!!r?.reviewed||(myRole()==='staff'&&!!r?.submittedAt);
   modal(`End-of-shift report · ${fmtDate(td)}`,
    `<div class="full note">To <b>${esc(mgr?.name||'Head office admin')}</b> · ${esc(clinicName(m.clinicId))}. Your task list is attached automatically.</div>
    <div><div class="eyebrow">Completed today (${done.length})</div><ul class="checklist">${done.map(t=>`<li>${esc(t.title)}</li>`).join('')||'<li class="mini">None marked done</li>'}</ul></div>
@@ -750,6 +756,7 @@ function viewReport(id){
    {label:isAdm?(r.adminVerified?'Update verification':'Verify report'):r.reviewed?'Update review':'Mark reviewed',noFocus:1})}
 
 function complaintForm(id){
+  if(id&&myRole()==='staff')return complaintView(id);
   const c=id?S.complaints[id]:{severity:'medium',status:'new',category:CCATS[0],channel:CHANNELS[0],clinicId:UI.clinic||me()?.clinicId||'',dept:'',handlerId:staffArr().find(s=>s.dept==='Customer Relations'&&(!UI.clinic||s.clinicId===UI.clinic))?.id||''};
   modal(id?'Complaint':'Log patient complaint',
    F('Patient name',`<input name="patient" required value="${esc(c.patient||'')}">`)+F('File / MRN no.',`<input name="fileNo" value="${esc(c.fileNo||'')}">`)+
@@ -767,6 +774,10 @@ function complaintForm(id){
      put('complaints',id||uid(),n);toast(id?'Complaint updated':'Complaint logged')},
    {left:id&&myRole()!=='staff'?`<button type="button" class="btn danger" data-act="delComplaint" data-id="${id}">Delete</button>`:'',label:id?'Save':'Log complaint'})}
 
+function complaintView(id){const c=S.complaints[id];if(!c)return;const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';const mine=c.handlerId&&c.handlerId===me()?.id;
+  modal('Complaint',`<dl class="kv full">${kv('Patient',c.patient)}${kv('File / MRN no.',c.fileNo)}${kv('Contact',c.phone)}${kv('Received via',c.channel)}${kv('Clinic',clinicName(c.clinicId))}${kv('Department',c.dept)}${kv('Category',c.category)}${kv('Severity',SEVL[c.severity])}${kv('What happened',c.description)}${kv('Handled by',c.handlerId?staffName(c.handlerId):'Unassigned')}${kv('Logged',new Date(c.createdAt).toLocaleString('en-GB',{timeZone:TZ})+' by '+(c.createdBy||'—'))}${mine?'':kv('Status',CSTATL[c.status]||c.status)+kv('Resolution',c.resolution)}</dl>`+
+   (mine?F('Status',`<select name="status">${opts(CSTAT,c.status)}</select>`)+F('Patient informed of outcome?',`<select name="informed">${opts([['no','Not yet'],['yes','Yes']],c.informed||'no')}</select>`)+F('Action taken / resolution',`<textarea name="resolution">${esc(c.resolution||'')}</textarea>`,1):''),
+   mine?fd=>{const n={...c,status:fd.status,informed:fd.informed,resolution:fd.resolution};if((fd.status==='resolved'||fd.status==='closed')&&!c.resolvedAt)n.resolvedAt=new Date().toISOString();if(fd.status==='new'||fd.status==='investigating')delete n.resolvedAt;put('complaints',id,n);toast('Complaint updated')}:null,{label:'Update progress',noFocus:true})}
 function clinicForm(id){const c=id?S.clinics[id]:{};
   modal(id?'Edit clinic':'Add clinic',F('Clinic name',`<input name="name" required value="${esc(c.name||'')}" placeholder="e.g. Jumeirah Branch">`)+F('Area',`<input name="area" value="${esc(c.area||'')}" placeholder="e.g. Jumeirah 1, Dubai">`),
    fd=>{put('clinics',id||uid(),{...c,...fd,createdAt:c.createdAt||new Date().toISOString()});toast(id?'Clinic updated':'Clinic added')},
@@ -809,6 +820,7 @@ const ACT={
   closeDlg:()=>dlg.close(),
   newTask:d=>{if(!clinicArr().length||!staffArr().length){toast('Add clinics and staff first.');return}taskForm(null,d.self&&me()?.name)},
   editTask:d=>taskForm(d.id),
+  viewTask:d=>taskView(d.id),
   done:d=>{setStatus({id:d.id,...S.tasks[d.id]},'done');toast('Marked done')},
   start:d=>setStatus({id:d.id,...S.tasks[d.id]},'progress'),
   reopen:d=>setStatus({id:d.id,...S.tasks[d.id]},'todo'),
