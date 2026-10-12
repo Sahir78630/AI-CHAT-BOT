@@ -204,7 +204,7 @@ const SEVH=Object.fromEntries(SEV.map(s=>[s[0],s[2]]));
 const CCATS=['Waiting time','Staff behaviour','Treatment outcome','Billing / pricing','Insurance / claim','Appointment / booking','Facility / hygiene','Other'];
 const CHANNELS=['Walk-in','Phone','WhatsApp','Email','Google review','Social media'];
 const COLS=['clinics','staff','tasks','reports','complaints','requests'];
-const RTYPES=['Leave','Purchase / expense','Patient discount / refund','Overtime','Schedule / shift change','Insurance write-off','Marketing spend','Other'];
+const RTYPES=['General request','Leave','Purchase / expense','Patient discount / refund','Overtime','Schedule / shift change','Insurance write-off','Marketing spend','Other'];
 const RSTAT={pending:['Waiting for head office admin','warnc'],referred:['Referred to MD','s-progress'],recommended:['Referred to MD','s-progress'],not_recommended:['Referred to MD (not recommended)','bad'],approved:['Approved','ok'],rejected:['Rejected','bad']};
 
 /* ---------- time (Dubai) ---------- */
@@ -496,7 +496,7 @@ function vMyDay(){
   const late=!r&&dubai().time>(m.shiftEnd||'18:00');
   return`<section class="panel"><div class="panel-head"><div><h2>${esc(m.name)}</h2><p>${esc(m.dept)} · ${esc(clinicName(m.clinicId))} · shift ends ${esc(m.shiftEnd||'18:00')} · reports to ${esc(mgr?.name||'head office admin')}</p></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap">${r?`<span class="chip ${r.late?'warnc':'ok'}">Report submitted ${esc(r.submittedLocal.slice(11))}${r.reviewed?' · reviewed':''}</span><button class="btn sm" data-act="reportForm">${r.reviewed?'View report':'Edit report'}</button>`:`<button class="btn primary" data-act="reportForm">Submit end-of-shift report</button>`}
-   <button class="btn" data-act="newTask" data-self="1">Add a task</button><button class="btn" data-act="newRequest">Request approval</button></div></div>
+   <button class="btn" data-act="newTask" data-self="1">Add a task</button><button class="btn" data-act="newRequest">Raise request</button></div></div>
    ${late?`<div class="banner" style="background:var(--red-soft);color:var(--red)">Your shift has ended and today's report isn't in yet.</div>`:''}</section>
   ${missed.length?`<section class="panel"><div class="sec-title"><h2>Missed, carry these forward</h2><span class="cnt">${missed.length}</span></div><div class="list">${missed.map(t=>taskRow(t,{noWho:1})).join('')}</div></section>`:''}
   <section class="panel"><div class="sec-title"><h2>Today, by priority</h2><span class="cnt">${todayT.length}</span></div><div class="list">${todayT.map(t=>taskRow(t,{noWho:1})).join('')||'<div class="mini">Nothing else due today.</div>'}</div></section>
@@ -580,7 +580,8 @@ const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&
 const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>(myRole()==='manager'?!r.reviewed&&r.staffId!==me()?.id:!r.adminVerified)&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
 const aed=n=>n||n===0?'AED '+Number(n).toLocaleString('en-US'):'';
 const when=iso=>iso?new Date(iso).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}):'';
-function requestRow(r){const[l,c]=RSTAT[r.status]||['',''];
+const rstat=r=>r.status==='referred'&&r.sendTo==='md'?['Waiting for MD','s-progress']:(RSTAT[r.status]||['','']);
+function requestRow(r){const[l,c]=rstat(r);
   return`<div class="row"><div class="pbar ${waiting(r)?'high':r.status==='approved'?'low':'urgent'}"></div><div style="min-width:0"><div class="t">${esc(r.title)}${r.amount?` <span class="mono" style="font-weight:500">· ${esc(aed(r.amount))}</span>`:''}</div>
   <div class="m"><span class="chip ${c}">${l}</span><span>${esc(r.type)}</span><span>${esc(staffName(r.staffId))} · ${esc(r.dept||'')}</span><span>${esc(clinicName(r.clinicId))}</span>${r.neededBy?`<span>Needed by ${esc(fmtDate(r.neededBy))}</span>`:''}<span>Raised ${ago(r.createdAt)} ago</span></div>
   ${r.mgrNote||r.adminNote?`<div class="m">${r.mgrNote?`<span>Referred: ${esc(r.mgrNote)}</span>`:''}${r.adminNote?`<span>${esc(r.decidedRole||'MD')}: ${esc(r.adminNote)}</span>`:''}</div>`:''}</div>
@@ -592,16 +593,16 @@ function vRequests(){
   R.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const segs=[...(role!=='staff'?[['mine',`Needs my decision (${cnt.mine})`]]:[]),['waiting',`Waiting (${cnt.waiting})`],['approved','Approved'],['rejected','Rejected'],['all','All']];
   return`<section class="panel"><div class="panel-head"><div class="seg" role="group" aria-label="Filter approvals">${segs.map(([k,l])=>`<button data-act="rf" data-v="${k}" aria-pressed="${f===k}">${l}</button>`).join('')}</div>
-  ${m&&m.name?`<button class="btn primary" data-act="newRequest">Request approval</button>`:''}</div>
-  <div class="note">Staff raise a request. A head office admin approves or rejects it, or refers it to the MD. Head office admins' own requests go straight to the MD.</div>
+  ${m&&m.name?`<button class="btn primary" data-act="newRequest">Raise request</button>`:''}</div>
+  <div class="note">Staff raise a request to a head office admin or straight to the MD. A head office admin approves or rejects it, or refers it to the MD. Head office admins' own requests go straight to the MD.</div>
   <div class="list">${R.map(requestRow).join('')||'<div class="empty">No requests here.</div>'}</div></section>`}
 function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “Using as” first.');return}
-  modal('Request approval',F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
-   F('What needs approval',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`<input type="date" name="neededBy">`),
-   fd=>{const byMgr=m.role!=='staff';put('requests',uid(),{...fd,amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:byMgr?'referred':'pending',mgrNote:byMgr?'Raised by head office admin':'',createdAt:new Date().toISOString()});toast(byMgr?'Sent to the MD':'Sent to head office admin')},{label:'Send request'})}
+  modal('Raise a request',(m.role==='staff'?F('Send to',`<select name="sendTo"><option value="hoa">Head office admin</option><option value="md">MD</option></select>`,1):'')+F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
+   F('Request',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`<input type="date" name="neededBy">`),
+   fd=>{const byMgr=m.role!=='staff',toMd=byMgr||fd.sendTo==='md';put('requests',uid(),{...fd,sendTo:toMd?'md':'hoa',amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:toMd?'referred':'pending',mgrNote:byMgr?'Raised by head office admin':'',createdAt:new Date().toISOString()});toast(toMd?'Sent to the MD':'Sent to head office admin')},{label:'Send request'})}
 function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
   const btns=role==='admin'?`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn primary" type="submit" value="yes">Approve</button>`:`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn" type="submit" value="refer">Refer to MD</button><button class="btn primary" type="submit" value="yes">Approve</button>`;
-  modal(r.title,`<dl class="kv full">${kv('Status',(RSTAT[r.status]||[''])[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',r.neededBy)}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Referred to MD',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Decision',r.adminBy||r.adminNote?`${r.adminBy||''} (${r.decidedRole||'MD'})${r.adminNote?': '+r.adminNote:''}`:'')}</dl>`+
+  modal(r.title,`<dl class="kv full">${kv('Status',rstat(r)[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',r.neededBy)}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Referred to MD',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Decision',r.adminBy||r.adminNote?`${r.adminBy||''} (${r.decidedRole||'MD'})${r.adminNote?': '+r.adminNote:''}`:'')}</dl>`+
    (act?F(role==='admin'?'MD comment':'Comment (required when referring to the MD)',`<textarea name="note"></textarea>`,1):''),
    act?(fd,choice)=>{if(!choice)return false;const by=me()?.name||'MD',at=new Date().toISOString();
      if(choice==='refer'){if(!fd.note.trim()){toast('Add a note for the MD.');return false}put('requests',id,{...r,status:'referred',mgrNote:fd.note,mgrBy:by,mgrAt:at});toast('Referred to the MD');return}
@@ -618,7 +619,7 @@ function returnForm(id){const t=S.tasks[id];
 function activity(who,days){const since=addDays(today(),-days),E=[];
   taskArr().forEach(t=>{if(!inClinic(t)||(who&&t.assigneeId!==who))return;if(t.completedAt&&(t.completedLocal||'')>=since)E.push({at:t.completedAt,who:t.assigneeId,kind:'Task completed',k:'s-done',text:t.title,extra:t.verify==='verified'?'<span class="chip ok">Verified</span>':'<span class="chip muted">Awaiting verification</span>',act:t.verify!=='verified'&&(myRole()==='admin'||(myRole()==='manager'&&t.assigneeId!==me()?.id&&t.verify!=='referred'))?`<button class="btn sm" data-act="verifyTask" data-id="${t.id}">Verify</button>`:''})});
   Object.entries(S.reports).forEach(([id,r])=>{if(!inClinic(r)||(who&&r.staffId!==who)||r.date<since)return;E.push({at:r.submittedAt,who:r.staffId,kind:'Daily report',k:'s-progress',text:r.summary,extra:r.adminVerified?'<span class="chip ok">Verified</span>':r.late?'<span class="chip warnc">Late</span>':'',act:`<button class="btn sm" data-act="viewReport" data-id="${id}">Open</button>`})});
-  reqArr().forEach(r=>{if(!inClinic(r)||(who&&r.staffId!==who)||(r.createdAt||'').slice(0,10)<since)return;E.push({at:r.createdAt,who:r.staffId,kind:'Approval request',k:'goldc',text:r.title+(r.amount?' · '+aed(r.amount):''),extra:`<span class="chip ${RSTAT[r.status][1]}">${RSTAT[r.status][0]}</span>`,act:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`})});
+  reqArr().forEach(r=>{if(!inClinic(r)||(who&&r.staffId!==who)||(r.createdAt||'').slice(0,10)<since)return;E.push({at:r.createdAt,who:r.staffId,kind:'Approval request',k:'goldc',text:r.title+(r.amount?' · '+aed(r.amount):''),extra:`<span class="chip ${rstat(r)[1]}">${rstat(r)[0]}</span>`,act:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`})});
   Object.entries(S.complaints).forEach(([id,c])=>{if(!inClinic(c)||(who&&c.handlerId!==who)||(c.createdAt||'').slice(0,10)<since)return;E.push({at:c.createdAt,who:c.handlerId,kind:'Complaint',k:'bad',text:`${c.patient} · ${c.category}`,extra:`<span class="chip muted">${CSTATL[c.status]}</span>`,act:`<button class="btn sm" data-act="editComplaint" data-id="${id}">Open</button>`})});
   return E.sort((a,b)=>(b.at||'').localeCompare(a.at||''))}
 function vAdmin(){
@@ -678,7 +679,7 @@ function taskForm(id,self){
   const hist=(t.history||[]).slice().reverse().slice(0,6);
   modal(id?'Edit task':'New task',
    F('Task',`<input name="title" required value="${esc(t.title||'')}" placeholder="e.g. Submit insurance claims batch for Daman">`,1)+
-   F('Assign to',`<select name="assigneeId" id="f-assignee" required>${opts(staffArr().filter(s=>s.active!==false).map(s=>[s.id,`${s.name} · ${s.dept} · ${clinicName(s.clinicId)}`]),t.assigneeId,'Choose a person')}</select>`,1)+
+   F('Assign to',`<select name="assigneeId" id="f-assignee" required>${opts(staffArr().filter(s=>s.active!==false&&(myRole()!=='staff'||s.role==='staff'||s.id===t.assigneeId)).map(s=>[s.id,`${s.name} · ${s.dept} · ${clinicName(s.clinicId)}`]),t.assigneeId,'Choose a person')}</select>`,1)+
    F('Department',`<select name="dept" id="f-dept" required>${opts(DEPTS,t.dept,'Choose')}</select>`)+
    F('Clinic',`<select name="clinicId" id="f-clinic" required>${opts(clinicArr().map(c=>[c.id,c.name]),t.clinicId,'Choose')}</select>`)+
    F('Priority',`<select name="priority">${opts(PRI.map(p=>[p[0],p[1]]),t.priority)}</select>`)+
@@ -690,6 +691,7 @@ function taskForm(id,self){
    F('Notes / instructions',`<textarea name="notes">${esc(t.notes||'')}</textarea>`,1)+
    (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(new Date(h.at).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</li>`).join('')}</ul></div>`:''),
    fd=>{const base=id?{...t}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'MD',carryCount:0,history:[]};
+     if(myRole()==='staff'&&S.staff[fd.assigneeId]?.role!=='staff'&&fd.assigneeId!==base.assigneeId){toast('Staff cannot give tasks to the MD or head office admins. Use Raise request instead.');return false}
      const wasDone=base.status==='done';const n={...base,...fd};
      if(id&&base.dueDate!==fd.dueDate&&!base.originalDue&&base.dueDate<today())n.originalDue=base.dueDate;
      if(id){n.history=[...(base.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Edited'}].slice(-20)}
