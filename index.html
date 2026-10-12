@@ -208,7 +208,7 @@ const SEVH=Object.fromEntries(SEV.map(s=>[s[0],s[2]]));
 const CCATS=['Waiting time','Staff behaviour','Treatment outcome','Billing / pricing','Insurance / claim','Appointment / booking','Facility / hygiene','Other'];
 const CHANNELS=['Walk-in','Phone','WhatsApp','Email','Google review','Social media'];
 const COLS=['clinics','staff','tasks','reports','complaints','requests'];
-const RTYPES=['General request','Leave','Purchase / expense','Patient discount / refund','Overtime','Schedule / shift change','Insurance write-off','Marketing spend','Other'];
+const RTYPES=['Leave','Purchase / expense','Patient discount / refund','Overtime','Schedule / shift change','Insurance write-off','Marketing spend','Other'];
 const RSTAT={pending:['Waiting for head office admin','warnc'],referred:['Referred to MD','s-progress'],recommended:['Referred to MD','s-progress'],not_recommended:['Referred to MD (not recommended)','bad'],approved:['Approved','ok'],rejected:['Rejected','bad']};
 
 /* ---------- time (Dubai) ---------- */
@@ -608,7 +608,7 @@ function vRequests(){
   <div class="note">Staff raise a request to a head office admin or straight to the MD. A head office admin approves or rejects it, or refers it to the MD. Head office admins' own requests go straight to the MD.</div>
   <div class="list">${R.map(requestRow).join('')||'<div class="empty">No requests here.</div>'}</div></section>`}
 function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “Using as” first.');return}
-  modal('Raise a request',(m.role==='staff'?F('Send to',`<select name="sendTo"><option value="hoa">Head office admin</option><option value="md">MD</option></select>`,1):'')+F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
+  modal('Raise a request',(m.role==='staff'?F('Send to',`<select name="sendTo"><option value="hoa">Head office admin</option><option value="md">MD</option></select>`,1):'')+F('Type',`<select name="type">${opts(m.role==='staff'?['Request','Others']:RTYPES,m.role==='staff'?'Request':RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
    F('Request',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`<input type="date" name="neededBy">`),
    fd=>{const byMgr=m.role!=='staff',toMd=byMgr||fd.sendTo==='md';put('requests',uid(),{...fd,sendTo:toMd?'md':'hoa',amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:toMd?'referred':'pending',mgrNote:byMgr?'Raised by head office admin':'',createdAt:new Date().toISOString()});toast(toMd?'Sent to the MD':'Sent to head office admin')},{label:'Send request'})}
 function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
