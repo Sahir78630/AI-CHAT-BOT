@@ -15,7 +15,7 @@
   --fg:#17232b; --fg-2:#4d5d68; --fg-3:#7a8a95;
   --accent:#0b6b62; --accent-ink:#ffffff; --accent-soft:#d9efec;
   --gold:#b7791f; --gold-soft:#f8ecd6;
-  --red:#b42318; --red-soft:#fde4e1; --amber:#a15c07; --amber-soft:#fdf0d5;
+  --red:#b42318; --red-soft:#fde4e1; --amber:#a15c07; --amber-soft:#fdf0d5; --orange:#c2410c; --orange-soft:#ffedd5;
   --green:#1d7a3e; --green-soft:#ddf3e4; --blue:#1f5fa8; --blue-soft:#e0ebf8;
   --shadow:0 1px 2px rgba(18,35,43,.06),0 4px 16px rgba(18,35,43,.06);
   --f-display:"Sora",ui-sans-serif,system-ui,sans-serif;
@@ -28,7 +28,7 @@
   --fg:#e6edf0; --fg-2:#a9b8c0; --fg-3:#7d8e98;
   --accent:#3fb8a9; --accent-ink:#06211e; --accent-soft:#163a37;
   --gold:#e3a94f; --gold-soft:#3a2d17;
-  --red:#ff8a7e; --red-soft:#3d1c19; --amber:#f0b34f; --amber-soft:#3a2b12;
+  --red:#ff8a7e; --red-soft:#3d1c19; --amber:#f0b34f; --amber-soft:#3a2b12; --orange:#fb923c; --orange-soft:#3b2412;
   --green:#6fd394; --green-soft:#16321f; --blue:#86b6ef; --blue-soft:#172a40;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}}
 :root[data-theme="dark"]{
@@ -36,7 +36,7 @@
   --fg:#e6edf0; --fg-2:#a9b8c0; --fg-3:#7d8e98;
   --accent:#3fb8a9; --accent-ink:#06211e; --accent-soft:#163a37;
   --gold:#e3a94f; --gold-soft:#3a2d17;
-  --red:#ff8a7e; --red-soft:#3d1c19; --amber:#f0b34f; --amber-soft:#3a2b12;
+  --red:#ff8a7e; --red-soft:#3d1c19; --amber:#f0b34f; --amber-soft:#3a2b12; --orange:#fb923c; --orange-soft:#3b2412;
   --green:#6fd394; --green-soft:#16321f; --blue:#86b6ef; --blue-soft:#172a40;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25); color-scheme:dark}
 *{box-sizing:border-box}
@@ -95,6 +95,10 @@ textarea{min-height:70px;resize:vertical}
 .row .t{font-weight:600;overflow-wrap:anywhere}
 .row .m{font-size:.78rem;color:var(--fg-3);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:2px}
 .row .acts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.row.by-md{background:color-mix(in srgb,var(--red-soft) 70%,transparent);box-shadow:inset 4px 0 0 var(--red);border-radius:8px;padding-left:10px}
+.row.by-hoa{background:color-mix(in srgb,var(--orange-soft) 80%,transparent);box-shadow:inset 4px 0 0 var(--orange);border-radius:8px;padding-left:10px}
+.chip.by-md{background:var(--red-soft);color:var(--red);border:1px solid var(--red);font-weight:600}
+.chip.by-hoa{background:var(--orange-soft);color:var(--orange);border:1px solid var(--orange);font-weight:600}
 .grid2 .row{grid-template-columns:auto minmax(0,1fr)}.grid2 .row .acts{grid-column:2;justify-content:flex-start}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;letter-spacing:.02em}
 .p-urgent{background:var(--red-soft);color:var(--red)}
@@ -383,7 +387,7 @@ function setStatus(t,st){const nt={...t};delete nt.id;nt.status=st;
   if(st==='done'){nt.completedAt=new Date().toISOString();nt.completedLocal=nowKey();nt.verify='pending';delete nt.verifiedBy;delete nt.verifiedAt;
     if(t.recurrence&&t.recurrence!=='none'&&!t.nextCreated){nt.nextCreated=true;const base=t.dueDate||today();
       let nd=t.recurrence==='daily'?addDays(base,1):t.recurrence==='weekly'?addDays(base,7):addMonths(base,1);if(nd<today())nd=today();
-      const n={title:t.title,notes:t.notes||'',clinicId:t.clinicId,dept:t.dept,assigneeId:t.assigneeId,priority:t.priority,dueDate:nd,dueTime:t.dueTime||'',recurrence:t.recurrence,status:'todo',createdAt:new Date().toISOString(),createdBy:t.createdBy||'',carryCount:0,sample:t.sample||undefined,history:[]};
+      const n={title:t.title,notes:t.notes||'',clinicId:t.clinicId,dept:t.dept,assigneeId:t.assigneeId,priority:t.priority,dueDate:nd,dueTime:t.dueTime||'',recurrence:t.recurrence,status:'todo',createdAt:new Date().toISOString(),createdBy:t.createdBy||'',createdByRole:t.createdByRole,carryCount:0,sample:t.sample||undefined,history:[]};
       put('tasks',uid(),n)}}
   else{delete nt.completedAt;delete nt.completedLocal;if(nt.verify!=='returned')delete nt.verify}
   return put('tasks',t.id,nt)}
@@ -435,14 +439,21 @@ function topbar(){
   <div class="who">${adminOK?'':`<button class="btn sm" data-act="signOut" title="Signed in as ${esc(PROFILE.username)}">Sign out</button>`}${!adminOK?'':`<label class="f">View as<select id="actingAs" data-change="acting"><option value="">MD (you)</option>${staffArr().map(s=>`<option value="${s.id}"${s.id===UI.actingAs?' selected':''}>${esc(s.name)} · ${esc(s.dept)}</option>`).join('')}</select></label>`}
   ${myRole()!=='staff'?`<label class="f">Clinic<select data-change="clinic"><option value="">All clinics</option>${clinicArr().map(c=>`<option value="${c.id}"${c.id===UI.clinic?' selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`:''}</div></div>`}
 
+function assigner(t){const by=t.createdBy||'';if(!by)return null;
+  const s=staffArr().find(x=>x.name===by);const role=t.createdByRole||(by==='MD'?'admin':s?.role)||'';
+  if(s&&s.id===t.assigneeId)return null;
+  if(role==='admin')return{k:'by-md',label:by==='MD'?'Assigned by MD':`Assigned by ${by} (MD)`};
+  if(role==='manager')return{k:'by-hoa',label:`Assigned by ${by} (Head office admin)`};
+  return{k:'',label:`Assigned by ${by}`}}
 function taskRow(t,o={}){
   const missed=isMissed(t),over=isOverdue(t);
   const due=t.dueDate?`${fmtDate(t.dueDate)}${t.dueTime?' '+t.dueTime:''}`:'No due date';
   const acts=o.verify?`<button class="btn sm primary" data-act="verifyTask" data-id="${t.id}">Verify</button><button class="btn sm" data-act="returnTask" data-id="${t.id}">Return with note</button>${myRole()==='manager'?`<button class="btn sm" data-act="referTask" data-id="${t.id}">Refer to MD</button>`:''}`:o.compact?'':t.status==='done'?`<button class="btn sm" data-act="reopen" data-id="${t.id}">Reopen</button>`:
    `${missed?`<button class="btn sm" data-act="carry" data-id="${t.id}">Carry to today</button>`:''}${t.status==='todo'?`<button class="btn sm" data-act="start" data-id="${t.id}">Start</button>`:''}<button class="btn sm primary" data-act="done" data-id="${t.id}">Done</button>`;
-  return`<div class="row"><div class="pbar ${t.priority}" title="${PRIL[t.priority]} priority"></div>
+  const ab=assigner(t);
+  return`<div class="row ${ab?ab.k:''}"><div class="pbar ${t.priority}" title="${PRIL[t.priority]} priority"></div>
   <div style="min-width:0"><div class="t">${esc(t.title)}</div><div class="m">
-   <span class="chip p-${t.priority}">${PRIL[t.priority]||''}</span><span class="chip s-${t.status}">${STATUSL[t.status]}</span>
+   ${ab?`<span class="chip ${ab.k||'muted'}">${esc(ab.label)}</span>`:''}<span class="chip p-${t.priority}">${PRIL[t.priority]||''}</span><span class="chip s-${t.status}">${STATUSL[t.status]}</span>
    ${missed?`<span class="missed-tag">Missed · ${esc(due)}</span>`:over?`<span class="missed-tag">Overdue · ${esc(due)}</span>`:`<span>Due ${esc(due)}</span>`}
    ${t.status==='done'?(t.verify==='verified'?`<span class="chip ok" title="${esc(t.verifiedBy||'')}">Verified${t.verifiedRole?' · '+esc(t.verifiedRole):''}</span>`:t.verify==='referred'?`<span class="chip s-progress" title="${esc(t.referNote||'')}">Referred to MD</span>`:'<span class="chip muted">Awaiting verification</span>'):''}
    ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by ${esc(t.returnedBy||'MD')}: ${esc(t.recommendation)}</span>`:''}
@@ -690,7 +701,7 @@ function taskForm(id,self){
    `<div class="mini" style="align-self:end">Repeating tasks create the next one when marked done.</div>`+
    F('Notes / instructions',`<textarea name="notes">${esc(t.notes||'')}</textarea>`,1)+
    (hist.length?`<div class="full"><div class="eyebrow">History</div><ul class="checklist">${hist.map(h=>`<li>${esc(h.what)} · ${esc(h.by)} · ${esc(new Date(h.at).toLocaleString('en-GB',{timeZone:TZ,day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}))}</li>`).join('')}</ul></div>`:''),
-   fd=>{const base=id?{...t}:{createdAt:new Date().toISOString(),createdBy:me()?.name||'MD',carryCount:0,history:[]};
+   fd=>{const base=id?{...t}:{createdAt:new Date().toISOString(),createdBy:myRole()==='admin'?(S.staff[PROFILE?.staff_id]?.name||'MD'):(me()?.name||'MD'),createdByRole:myRole(),carryCount:0,history:[]};
      if(myRole()==='staff'&&S.staff[fd.assigneeId]?.role!=='staff'&&fd.assigneeId!==base.assigneeId){toast('Staff cannot give tasks to the MD or head office admins. Use Raise request instead.');return false}
      const wasDone=base.status==='done';const n={...base,...fd};
      if(id&&base.dueDate!==fd.dueDate&&!base.originalDue&&base.dueDate<today())n.originalDue=base.dueDate;
