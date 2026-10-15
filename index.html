@@ -100,6 +100,10 @@ textarea{min-height:70px;resize:vertical}
 .chip.by-md{background:var(--red-soft);color:var(--red);border:1px solid var(--red);font-weight:600}
 .chip.by-hoa{background:var(--orange-soft);color:var(--orange);border:1px solid var(--orange);font-weight:600}
 .upd{background:var(--surface-2,rgba(127,127,127,.12));border-radius:6px;padding:1px 8px;color:var(--ink)}
+.dpick{position:relative;display:flex;align-items:stretch;gap:4px}
+.dpick .dtext{flex:1;min-width:0;width:auto}
+.dpick .dnative{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+.dpick .dbtn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:0 10px;cursor:pointer;font-size:1rem}
 .grid2 .row{grid-template-columns:auto minmax(0,1fr)}.grid2 .row .acts{grid-column:2;justify-content:flex-start}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;letter-spacing:.02em}
 .p-urgent{background:var(--red-soft);color:var(--red)}
@@ -546,7 +550,7 @@ function vReports(){
     return`<tr><td><b>${esc(s.name)}</b><div class="mini">${esc(s.dept)}</div></td><td>${esc(clinicName(s.clinicId))}<div class="mini">to ${esc(mgr?.name||'—')}</div></td><td>${st}</td><td class="n">${r?r.completedIds.length:'·'}</td><td class="n">${r?r.pendingIds.length:'·'}</td><td>${r?(r.adminVerified?`<span class="chip ok">Verified by MD</span>`:r.reviewed?`<span class="chip ok">Reviewed</span>`:`<span class="chip s-progress">Awaiting review</span>`):''}</td><td>${r?`<button class="btn sm" data-act="viewReport" data-id="${d}_${s.id}">Open</button>`:''}</td></tr>`});
   const sub=staff.filter(s=>reportFor(s.id,d)).length,exp=staff.filter(s=>worksOn(s,d)).length;
   return`<section class="panel"><div class="panel-head"><div><h2>${fmtDate(d)} · ${sub} of ${exp} submitted</h2><p>Staff submit from “My day” before their shift ends. Late means after their shift end time.</p></div>
-   <div style="display:flex;gap:8px;align-items:flex-end"><button class="btn sm" data-act="rDay" data-n="-1" aria-label="Previous day">‹</button><input type="date" id="rDate" data-change="rDate" value="${d}" style="width:auto"><button class="btn sm" data-act="rDay" data-n="1" aria-label="Next day">›</button></div></div>
+   <div style="display:flex;gap:8px;align-items:flex-end"><button class="btn sm" data-act="rDay" data-n="-1" aria-label="Previous day">‹</button>${dateInput('',d,'id="rDate" data-change="rDate"')}<button class="btn sm" data-act="rDay" data-n="1" aria-label="Next day">›</button></div></div>
    <div class="tbl-wrap"><table><thead><tr><th>Staff</th><th>Clinic · manager</th><th>Status</th><th class="n">Done</th><th class="n">Pending</th><th>Review</th><th></th></tr></thead><tbody>${rows.join('')}</tbody></table></div></section>`}
 
 function complaintRow(c){const h=hoursSince(c.createdAt),open=c.status==='new'||c.status==='investigating',breach=open&&h>SEVH[c.severity];
@@ -614,7 +618,7 @@ function vRequests(){
   <div class="list">${R.map(requestRow).join('')||'<div class="empty">No requests here.</div>'}</div></section>`}
 function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “Using as” first.');return}
   modal('Raise a request',(m.role==='staff'?F('Send to',`<select name="sendTo"><option value="hoa">Head office admin</option><option value="md">MD</option></select>`,1):'')+F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
-   F('Request',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`<input type="date" name="neededBy">`),
+   F('Request',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`${dateInput('neededBy','')}`),
    fd=>{const byMgr=m.role!=='staff',toMd=byMgr||fd.sendTo==='md';put('requests',uid(),{...fd,sendTo:toMd?'md':'hoa',amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:toMd?'referred':'pending',mgrNote:byMgr?'Raised by head office admin':'',createdAt:new Date().toISOString()});toast(toMd?'Sent to the MD':'Sent to head office admin')},{label:'Send request'})}
 function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
   const btns=role==='admin'?`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn primary" type="submit" value="yes">Approve</button>`:`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn" type="submit" value="refer">Refer to MD</button><button class="btn primary" type="submit" value="yes">Approve</button>`;
@@ -635,7 +639,7 @@ function updateForm(id){const t=S.tasks[id];if(!t)return;const prev=(t.history||
    fd=>{const by=me()?.name||'MD',at=new Date().toISOString();put('tasks',id,{...t,status:fd.status,lastUpdate:{text:fd.text,by,at},history:[...(t.history||[]),{at,by,what:'Update: '+fd.text}].slice(-20)});toast('Update saved')},{label:'Save update'})}
 function returnForm(id){const t=S.tasks[id];
   modal('Return task with a recommendation',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. It goes back on their list as To do with your note.</div>`+
-   F('What needs to be done',`<textarea name="note" required placeholder="e.g. Attach the signed approval letter before closing"></textarea>`,1)+F('New due date',`<input type="date" name="due" value="${today()}">`),
+   F('What needs to be done',`<textarea name="note" required placeholder="e.g. Attach the signed approval letter before closing"></textarea>`,1)+F('New due date',`${dateInput('due',today())}`),
    fd=>{const by=me()?.name||'MD';const n={...t,status:'todo',verify:'returned',recommendation:fd.note,returnedBy:by,returnedCount:(t.returnedCount||0)+1,dueDate:fd.due||today(),
      history:[...(t.history||[]),{at:new Date().toISOString(),by,what:'Returned: '+fd.note}].slice(-20)};delete n.completedAt;delete n.completedLocal;put('tasks',id,n);toast('Returned to '+staffName(t.assigneeId))},{label:'Return task'})}
 function activity(who,days){const since=addDays(today(),-days),E=[];
@@ -692,8 +696,15 @@ function modal(title,body,submit,o={}){
   <div class="dlg-foot">${o.left||''}<span style="flex:1"></span><button type="button" class="btn" data-act="closeDlg">${submit?'Cancel':'Close'}</button>${submit?(o.buttons||`<button class="btn primary" type="submit">${esc(o.label||'Save')}</button>`):''}</div>`;
   onSubmit=submit;if(!dlg.open)dlg.showModal();const first=dlgForm.querySelector('.dlg-body input,.dlg-body select,.dlg-body textarea');if(first&&!o.noFocus)first.focus()}
 dlgForm.addEventListener('submit',e=>{e.preventDefault();if(!onSubmit)return;
-  for(const el of dlgForm.querySelectorAll('[required]'))if(!String(el.value).trim()){el.focus();toast('Fill in '+(el.closest('label')?.firstChild?.textContent||'the required field').trim()+'.');return}
+  for(const x of dlgForm.querySelectorAll('.dtext')){x.dispatchEvent(new Event('change',{bubbles:true}));if(x.value.trim()&&!parseDmy(x.value)){x.focus();return}}
+  for(const el of dlgForm.querySelectorAll('[required]'))if(!String(el.value).trim()){(el.classList.contains('dnative')?el.parentNode.querySelector('.dtext'):el).focus();toast('Fill in '+(el.closest('label')?.firstChild?.textContent||'the required field').trim()+'.');return}
   const fd=Object.fromEntries(new FormData(dlgForm));if(onSubmit(fd,e.submitter&&e.submitter.value)!==false)dlg.close()});
+// Date box that always shows DD/MM/YY, whatever the computer's language setting. The hidden native input holds the ISO date for forms.
+function dateInput(name,value,attrs=''){return`<span class="dpick"><input type="text" class="dtext" inputmode="numeric" placeholder="DD/MM/YY" maxlength="10" value="${esc(dmy(value))}" aria-label="Date (DD/MM/YY)"><input type="date" class="dnative" tabindex="-1" aria-hidden="true" ${name?`name="${name}"`:''} value="${esc(value||'')}" ${attrs}><button type="button" class="dbtn" aria-label="Open calendar">📅</button></span>`}
+function parseDmy(t){const m=String(t).trim().match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2}|\d{4})$/);if(!m)return null;const y=m[3].length===2?'20'+m[3]:m[3],mo=m[2].padStart(2,'0'),d=m[1].padStart(2,'0');const iso=`${y}-${mo}-${d}`;const x=new Date(iso+'T00:00:00Z');return isNaN(x)||x.toISOString().slice(0,10)!==iso?null:iso}
+document.addEventListener('change',e=>{const t=e.target;if(t.classList?.contains('dtext')){const n=t.parentNode.querySelector('.dnative');const v=t.value.trim()?parseDmy(t.value):'';if(v===null){toast('Enter the date as DD/MM/YY, for example 15/10/26.');return}if(n.value!==v){n.value=v;n.dispatchEvent(new Event('change',{bubbles:true}))}t.value=dmy(v)}
+  else if(t.classList?.contains('dnative')){const x=t.parentNode.querySelector('.dtext');if(x)x.value=dmy(t.value)}},true);
+document.addEventListener('click',e=>{const b=e.target.closest?.('.dbtn');if(!b)return;const n=b.parentNode.querySelector('.dnative');try{n.showPicker()}catch{n.focus()}});
 const F=(label,inner,full)=>`<label class="f${full?' full':''}">${label}${inner}</label>`;
 
 function taskView(id){const t=S.tasks[id];if(!t)return;const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';const ab=assigner(t);
@@ -712,7 +723,7 @@ function taskForm(id,self){
    F('Clinic',`<select name="clinicId" id="f-clinic" required>${opts(clinicArr().map(c=>[c.id,c.name]),t.clinicId,'Choose')}</select>`)+
    F('Priority',`<select name="priority">${opts(PRI.map(p=>[p[0],p[1]]),t.priority)}</select>`)+
    F('Status',`<select name="status">${opts(STATUS,t.status)}</select>`)+
-   F('Due date',`<input type="date" name="dueDate" required value="${esc(t.dueDate||'')}">`)+
+   F('Due date',`${dateInput('dueDate',t.dueDate||'','required')}`)+
    F('Due time (optional)',`<input type="time" name="dueTime" value="${esc(t.dueTime||'')}">`)+
    F('Repeats',`<select name="recurrence">${opts(REC,t.recurrence||'none')}</select>`)+
    `<div class="mini" style="align-self:end">Repeating tasks create the next one when marked done.</div>`+
