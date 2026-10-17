@@ -354,6 +354,8 @@ function eventsFor(col,o,n){
     if(myId&&n.staffId===myId&&o){
       if(n.adminVerified&&(!o.adminVerified||n.adminNote!==o.adminNote))add('Your report was verified by the MD',n.adminNote||'','myday');
       else if(n.reviewed&&(!o.reviewed||n.reviewNote!==o.reviewNote))add('Your report was reviewed',`${n.reviewedBy||''}${n.reviewNote?': '+n.reviewNote:''}`,'myday')}}
+  if(col==='attendance'&&!o&&n.status==='late'&&n.staffId!==myId){const sr=S.staff[n.staffId]?.role;
+    if(role==='manager'&&sr==='staff'||role==='admin'&&sr==='manager')add('Late log in',`${who(n.staffId)} · ${n.dept||''}\nLogged in ${n.firstLogin}, shift starts ${n.shiftStart} (${hm(n.lateMins)} late)`,'reports')}
   if(col==='complaints'){const line=`${n.patient||'Patient'} · ${clinicName(n.clinicId)} · ${SEVL[n.severity]||''}\n${n.description||''}`,urg=n.severity==='critical'||n.severity==='high';
     if(myId&&n.handlerId===myId&&o?.handlerId!==myId)add('Complaint assigned to you',line,'complaints',urg);
     else if(!o&&!n.handlerId&&sameDept(n))add('New complaint for your department',line,'complaints',urg);
@@ -392,10 +394,19 @@ const isMissed=t=>isOpen(t)&&t.dueDate&&t.dueDate<today();
 function inClinic(x){return!UI.clinic||x.clinicId===UI.clinic}
 function taskSort(a,b){const ma=isMissed(a)?1:0,mb=isMissed(b)?1:0;if(ma!==mb)return mb-ma;const pa=PRIW[a.priority]||0,pb=PRIW[b.priority]||0;if(pa!==pb)return pb-pa;return(dueKey(a)).localeCompare(dueKey(b))}
 const reportsDue=s=>s.role!=='admin';
+// Shifts: fixed (start/end times), rotating, or none. Only fixed shifts are judged early/late.
+const SHIFTT=[['fixed','Fixed timing'],['rotating','Rotating (changes)'],['none','None']];
+const fixedShift=s=>!s?.shiftType||s.shiftType==='fixed';
+const shiftEndOf=s=>fixedShift(s)?(s?.shiftEnd||'18:00'):'23:59';
+const shiftCell=s=>s?.shiftType==='rotating'?'Rotating':s?.shiftType==='none'?'None':`${s?.shiftStart?s.shiftStart+'–':''}${s?.shiftEnd||'18:00'}`;
+const shiftText=s=>s?.shiftType==='rotating'?'rotating shift':s?.shiftType==='none'?'no fixed shift':s?.shiftStart?`shift ${s.shiftStart}–${s.shiftEnd||'18:00'}`:`shift ends ${s?.shiftEnd||'18:00'}`;
+function punctuality(s,t){if(!fixedShift(s)||!s.shiftStart||!t)return null;const d=minsBetween(s.shiftStart,t),e=minsBetween(t,s.shiftStart);
+  if(e>0)return{status:'early',mins:e};if(d<=5)return{status:'ontime',mins:d};return{status:'late',mins:d}}
+function punctChip(a){if(!a||!a.status)return'';return a.status==='late'?`<span class="chip bad">Late ${hm(a.lateMins)}</span>`:a.status==='early'?`<span class="chip ok">Early ${hm(a.earlyMins)}</span>`:`<span class="chip ok">On time</span>`}
 // Attendance: first time a person opens the app each day (Dubai time). Log-out = report submit time.
 const loginOf_=(sid,d)=>(S.attendance||{})[d+'_'+sid];
 function markLogin(sid){const s=S.staff[sid];if(!s||s.role==='admin')return;const d=dubai();const id=d.date+'_'+sid;if((S.attendance||{})[id])return;
-  put('attendance',id,{staffId:sid,date:d.date,firstLogin:d.time,firstLoginAt:new Date().toISOString(),clinicId:s.clinicId,dept:s.dept})}
+  const pu=punctuality(s,d.time);put('attendance',id,{staffId:sid,date:d.date,firstLogin:d.time,firstLoginAt:new Date().toISOString(),clinicId:s.clinicId,dept:s.dept,shiftStart:fixedShift(s)?s.shiftStart||'':'',status:pu?.status||'',lateMins:pu?.status==='late'?pu.mins:0,earlyMins:pu?.status==='early'?pu.mins:0});return pu}
 const hm=mins=>mins==null||isNaN(mins)?'—':`${Math.floor(mins/60)}h ${String(Math.round(mins%60)).padStart(2,'0')}m`;
 const minsBetween=(a,b)=>{if(!a||!b)return null;const[x,y]=a.split(':').map(Number),[u,v]=b.split(':').map(Number);return Math.max(0,(u*60+v)-(x*60+y))};
 function workLine(r,sid,d){const a=loginOf_(sid,d);const inT=r?.loginLocal||a?.firstLogin||'';const outT=r?.submittedLocal?r.submittedLocal.slice(11):'';
@@ -426,7 +437,7 @@ function calc(days,groupKey){
     if((t.carryCount||0)>0||isOverdue(t))x.missed++});
   staffArr().forEach(s=>{if(!inClinic(s)||!reportsDue(s))return;const k=groupKey==='dept'?s.dept:s.id;const x=g(k);
     for(let d=start;d<=end;d=addDays(d,1)){if(!worksOn(s,d))continue;const r=reportFor(s.id,d);
-      if(d===end&&!r&&dubai().time<(s.shiftEnd||'18:00'))continue;x.expected++;if(r){x.submitted++;if(r.late)x.late++}}});
+      if(d===end&&!r&&dubai().time<shiftEndOf(s))continue;x.expected++;if(r){x.submitted++;if(r.late)x.late++}}});
   Object.values(groups).forEach(x=>{x.compRate=x.assigned?x.done/x.assigned:null;x.onTimeRate=x.assigned?x.onTime/x.assigned:null;x.repRate=x.expected?x.submitted/x.expected:null;
     x.avgHrs=x.hrs.length?x.hrs.reduce((a,b)=>a+b,0)/x.hrs.length:null;
     if(x.assigned&&x.expected)x.score=Math.round(100*(.5*x.onTimeRate+.3*x.compRate+.2*x.repRate));
@@ -444,7 +455,7 @@ function needsStart(){const sid=PROFILE?.staff_id;const s=S.staff[sid];return!ad
 function startDayScreen(){const s=S.staff[PROFILE.staff_id];const h=+dubai().time.slice(0,2);
   return`<div class="startday"><div class="startday-card"><div class="eyebrow">${esc(new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long'}))} ${esc(dmy(today()))} · ${esc(dubai().time)}</div>
    <h1>${h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, ${esc(s.name.trim())}</h1>
-   <p>${esc(s.dept)} · ${esc(clinicName(s.clinicId))} · shift ends ${esc(s.shiftEnd||'18:00')}</p>
+   <p>${esc(s.dept)} · ${esc(clinicName(s.clinicId))} · ${esc(shiftText(s))}</p>
    <button class="btn primary startday-btn" data-act="startDay">☀️ Let's start the day</button>
    <p class="mini">Pressing this records your log-in time for today's end-of-shift report.</p></div></div>`}
 function render(){
@@ -519,7 +530,7 @@ function vDashboard(){
     <div class="list">${missed.slice(0,8).map(t=>taskRow(t)).join('')||'<div class="mini">Nothing missed. Every past task is complete.</div>'}</div>
     ${missed.length>8?`<button class="btn sm" data-act="gotoMissed">See all ${missed.length}</button>`:''}</section>
    <section class="panel"><div class="panel-head"><div><h2>End-of-shift reports · today</h2><p>Each report goes to that clinic's manager.</p></div><button class="btn sm" data-act="nav" data-v="reports">Open reports</button></div>
-    <div><div class="eyebrow" style="margin-bottom:6px">Not submitted (${missing.length})</div>${missing.map(s=>`<span class="chip ${dubai().time>(s.shiftEnd||'18:00')?'bad':'muted'}" style="margin:0 4px 4px 0">${esc(s.name)} · ends ${esc(s.shiftEnd||'18:00')}</span>`).join('')||'<span class="mini">Everyone has reported.</span>'}</div>
+    <div><div class="eyebrow" style="margin-bottom:6px">Not submitted (${missing.length})</div>${missing.map(s=>`<span class="chip ${dubai().time>shiftEndOf(s)?'bad':'muted'}" style="margin:0 4px 4px 0">${esc(s.name)}${fixedShift(s)?` · ends ${esc(shiftEndOf(s))}`:""}</span>`).join('')||'<span class="mini">Everyone has reported.</span>'}</div>
     <div><div class="eyebrow" style="margin-bottom:6px">Submitted (${subm.length})</div>${subm.map(s=>{const r=reportFor(s.id,td);return`<button class="chip ${r.late?'warnc':'ok'}" style="margin:0 4px 4px 0;border:0;cursor:pointer" data-act="viewReport" data-id="${td}_${s.id}">${esc(s.name)}${r.late?' · late':''}${r.reviewed?' ✓':''}</button>`}).join('')||'<span class="mini">None yet.</span>'}</div></section>
   </div>
   <div class="grid2">
@@ -537,10 +548,11 @@ function vMyDay(){
   const missed=mine.filter(isMissed).sort(taskSort),todayT=mine.filter(t=>isOpen(t)&&t.dueDate===td).sort(taskSort);
   const upcoming=mine.filter(t=>isOpen(t)&&t.dueDate>td&&t.dueDate<=addDays(td,7)).sort(taskSort),doneT=mine.filter(t=>t.status==='done'&&(t.completedLocal||'').startsWith(td));
   const r=reportFor(m.id,td);const mgr=managerOf(m.clinicId);
-  const isMD=m.role==='admin',late=!isMD&&!r&&dubai().time>(m.shiftEnd||'18:00');
-  return`<section class="panel"><div class="panel-head"><div><h2>${esc(m.name)}</h2><p>${esc(m.dept)} · ${esc(clinicName(m.clinicId))} ${isMD?' · Managing Director':`${loginOf_(m.id,td)?` · logged in ${esc(loginOf_(m.id,td).firstLogin)}`:''} · shift ends ${esc(m.shiftEnd||'18:00')} · reports to ${esc(m.role==='manager'?'the MD':(mgr?.name||'head office admin'))}`}</p></div>
+  const isMD=m.role==='admin',late=!isMD&&!r&&dubai().time>shiftEndOf(m);
+  return`<section class="panel"><div class="panel-head"><div><h2>${esc(m.name)}</h2><p>${esc(m.dept)} · ${esc(clinicName(m.clinicId))} ${isMD?' · Managing Director':`${loginOf_(m.id,td)?` · logged in ${esc(loginOf_(m.id,td).firstLogin)}`:''} · ${esc(shiftText(m))} · reports to ${esc(m.role==='manager'?'the MD':(mgr?.name||'head office admin'))}`}</p></div>
    <div style="display:flex;gap:8px;flex-wrap:wrap">${isMD?'':r?`<span class="chip ${r.late?'warnc':'ok'}">Report submitted ${esc(r.submittedLocal.slice(11))}${r.reviewed?' · reviewed':''}</span><button class="btn sm" data-act="reportForm">${r.reviewed||myRole()==='staff'?'View report':'Edit report'}</button>`:`<button class="btn primary" data-act="reportForm">Submit end-of-shift report</button>`}
    <button class="btn" data-act="newTask" data-self="1">Add a task</button><button class="btn" data-act="newRequest">Raise request</button></div></div>
+   ${(()=>{const a=loginOf_(m.id,td);if(!a||!a.status)return'';return a.status==='late'?`<div class="banner" style="background:var(--red-soft);color:var(--red)">You started ${esc(hm(a.lateMins))} late today (logged in ${esc(a.firstLogin)}, shift starts ${esc(a.shiftStart)}). This has been marked late and your ${m.role==='manager'?'MD':'head office admin'} has been informed.</div>`:a.status==='early'?`<div class="banner" style="background:var(--green-soft,#dcfce7);color:var(--green,#166534)">🌟 Great start, ${esc(m.name.trim())}! You began ${esc(hm(a.earlyMins))} before your shift today. Thank you for your dedication.</div>`:`<div class="banner" style="background:var(--green-soft,#dcfce7);color:var(--green,#166534)">✅ Right on time today. Have a productive day!</div>`})()}
    ${late?`<div class="banner" style="background:var(--red-soft);color:var(--red)">Your shift has ended and today's report isn't in yet.</div>`:''}</section>
   ${missed.length?`<section class="panel"><div class="sec-title"><h2>Missed, carry these forward</h2><span class="cnt">${missed.length}</span></div><div class="list">${missed.map(t=>taskRow(t,{noWho:1})).join('')}</div></section>`:''}
   <section class="panel"><div class="sec-title"><h2>Today, by priority</h2><span class="cnt">${todayT.length}</span></div><div class="list">${todayT.map(t=>taskRow(t,{noWho:1})).join('')||'<div class="mini">Nothing else due today.</div>'}</div></section>
@@ -568,10 +580,10 @@ function vReports(){
   if(!Object.keys(S.staff).length)return emptySetup();
   const d=UI.rDate||today();const staff=staffArr().filter(inClinic).filter(reportsDue).filter(s=>s.active!==false||reportFor(s.id,d));
   const rows=staff.map(s=>{const r=reportFor(s.id,d);const off=!worksOn(s,d);let st;
-    if(r)st=`<span class="chip ${r.late?'warnc':'ok'}">${r.late?'Late':'On time'} · ${esc(r.submittedLocal.slice(11))}</span>`;
-    else if(off)st=`<span class="chip muted">Day off</span>`;else if(d<today()||dubai().time>(s.shiftEnd||'18:00'))st=`<span class="chip bad">Missing</span>`;else st=`<span class="chip muted">Due by ${esc(s.shiftEnd||'18:00')}</span>`;
+    if(r)st=`<span class="chip ${r.late?'warnc':'ok'}">${r.late?'Report late':'Report on time'} · ${esc(r.submittedLocal.slice(11))}</span>`;
+    else if(off)st=`<span class="chip muted">Day off</span>`;else if(d<today()||dubai().time>shiftEndOf(s))st=`<span class="chip bad">Missing</span>`;else st=`<span class="chip muted">${fixedShift(s)?`Due by ${esc(shiftEndOf(s))}`:"Due today"}</span>`;
     const mgr=managerOf(s.clinicId);
-    return`<tr><td><b>${esc(s.name)}</b><div class="mini">${esc(s.dept)}</div></td><td>${esc(clinicName(s.clinicId))}<div class="mini">to ${esc(mgr?.name||'—')}</div></td><td>${st}</td>${(()=>{const w=workLine(r,s.id,d);return`<td class="mono">${esc(w.inT||'·')}</td><td class="mono">${esc(w.outT||'·')}</td><td class="mono">${r?esc(hm(w.mins)):'·'}</td>`})()}<td class="n">${r?r.completedIds.length:'·'}</td><td class="n">${r?r.pendingIds.length:'·'}</td><td>${r?(r.adminVerified?`<span class="chip ok">Verified by MD</span>`:r.reviewed?`<span class="chip ok">Reviewed</span>`:`<span class="chip s-progress">Awaiting review</span>`):''}</td><td>${r?`<button class="btn sm" data-act="viewReport" data-id="${d}_${s.id}">Open</button>`:''}</td></tr>`});
+    return`<tr><td><b>${esc(s.name)}</b><div class="mini">${esc(s.dept)}</div></td><td>${esc(clinicName(s.clinicId))}<div class="mini">to ${esc(mgr?.name||'—')}</div></td><td>${st}</td>${(()=>{const w=workLine(r,s.id,d);return`<td class="mono">${esc(w.inT||'·')} ${punctChip(loginOf_(s.id,d))}</td><td class="mono">${esc(w.outT||'·')}</td><td class="mono">${r?esc(hm(w.mins)):'·'}</td>`})()}<td class="n">${r?r.completedIds.length:'·'}</td><td class="n">${r?r.pendingIds.length:'·'}</td><td>${r?(r.adminVerified?`<span class="chip ok">Verified by MD</span>`:r.reviewed?`<span class="chip ok">Reviewed</span>`:`<span class="chip s-progress">Awaiting review</span>`):''}</td><td>${r?`<button class="btn sm" data-act="viewReport" data-id="${d}_${s.id}">Open</button>`:''}</td></tr>`});
   const sub=staff.filter(s=>reportFor(s.id,d)).length,exp=staff.filter(s=>worksOn(s,d)).length;
   return`<section class="panel"><div class="panel-head"><div><h2>${fmtDate(d)} · ${sub} of ${exp} submitted</h2><p>Staff submit from “My day” before their shift ends. Late means after their shift end time.</p></div>
    <div style="display:flex;gap:8px;align-items:flex-end"><button class="btn sm" data-act="rDay" data-n="-1" aria-label="Previous day">‹</button>${dateInput('',d,'id="rDate" data-change="rDate"')}<button class="btn sm" data-act="rDay" data-n="1" aria-label="Next day">›</button></div></div>
@@ -615,8 +627,8 @@ function vSetup(){
   ${St.some(s=>s.role==='admin')?`<section class="panel"><div class="panel-head"><div><h2>MD</h2><p>Managing Director · does not submit daily reports or report to anyone</p></div></div>
    <div class="list">${St.filter(s=>s.role==='admin').map(s=>`<div class="row by-md"><div></div><div style="min-width:0"><div class="t">${esc(s.name)}</div><div class="m"><span class="chip by-md">MD</span><span>${esc(clinicName(s.clinicId))}</span>${loginOf(s.id)?`<span class="mono">${esc(loginOf(s.id).username)}</span>`:''}</div></div><div class="acts">${adminOK?`<button class="btn sm ghost" data-act="staffForm" data-id="${s.id}">Edit</button>`:''}</div></div>`).join('')}</div></section>`:''}
   <section class="panel"><div class="panel-head"><div><h2>Staff</h2><p>${St.filter(s=>s.role!=='admin').length} people across ${DEPTS.length} departments</p></div><button class="btn primary sm" data-act="staffForm">Add staff member</button></div>
-   <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Department</th><th>Clinic</th><th>Role</th><th>Shift ends</th><th>Day off</th><th>Login</th><th></th></tr></thead><tbody>
-   ${St.filter(inClinic).filter(s=>s.role!=='admin').map(s=>`<tr><td><b>${esc(s.name)}</b>${s.active===false?' <span class="chip muted">Inactive</span>':''}</td><td>${esc(s.dept)}</td><td>${esc(clinicName(s.clinicId))}</td><td>${ROLEL[s.role]}</td><td class="mono">${esc(s.shiftEnd||'18:00')}</td><td>${s.dayOff===''||s.dayOff==null?'None':DAYS[+s.dayOff]}</td><td>${(()=>{const l=loginOf(s.id);if(!adminOK)return l?`<span class="mono">${esc(l.username)}</span>`:'<span class="mini">None</span>';return l?`<span class="mono">${esc(l.username)}</span> <button class="btn sm ghost" data-act="resetPw" data-id="${s.id}">Reset password</button>`:`<button class="btn sm" data-act="createLogin" data-id="${s.id}">Create login</button>`})()}</td><td><button class="btn sm ghost" data-act="staffForm" data-id="${s.id}">Edit</button></td></tr>`).join('')||'<tr><td colspan="8" class="mini">No staff yet.</td></tr>'}</tbody></table></div></section>`}
+   <div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Department</th><th>Clinic</th><th>Role</th><th>Shift</th><th>Day off</th><th>Login</th><th></th></tr></thead><tbody>
+   ${St.filter(inClinic).filter(s=>s.role!=='admin').map(s=>`<tr><td><b>${esc(s.name)}</b>${s.active===false?' <span class="chip muted">Inactive</span>':''}</td><td>${esc(s.dept)}</td><td>${esc(clinicName(s.clinicId))}</td><td>${ROLEL[s.role]}</td><td class="mono">${esc(shiftCell(s))}</td><td>${s.dayOff===''||s.dayOff==null?'None':DAYS[+s.dayOff]}</td><td>${(()=>{const l=loginOf(s.id);if(!adminOK)return l?`<span class="mono">${esc(l.username)}</span>`:'<span class="mini">None</span>';return l?`<span class="mono">${esc(l.username)}</span> <button class="btn sm ghost" data-act="resetPw" data-id="${s.id}">Reset password</button>`:`<button class="btn sm" data-act="createLogin" data-id="${s.id}">Create login</button>`})()}</td><td><button class="btn sm ghost" data-act="staffForm" data-id="${s.id}">Edit</button></td></tr>`).join('')||'<tr><td colspan="8" class="mini">No staff yet.</td></tr>'}</tbody></table></div></section>`}
 
 /* ---------- admin review & approvals ---------- */
 const reqArr=()=>Object.entries(S.requests).map(([id,r])=>({id,...r}));
@@ -790,18 +802,18 @@ function reportForm(){
    F('Plan for tomorrow',`<textarea name="tomorrow" ${ro?'readonly':''}>${esc(r?.tomorrow||'')}</textarea>`,1)+
    F('Patients / cases handled',`<input type="number" min="0" name="cases" value="${esc(r?.cases??'')}" ${ro?'readonly':''}>`)+
    (()=>{const a=loginOf_(m.id,td);const inT=r?.loginLocal||a?.firstLogin||'';const outT=r?.submittedLocal?r.submittedLocal.slice(11):dubai().time;const mins=r?.workedMins??(inT?minsBetween(inT,outT):null);
-     return`<div class="full worktime"><div><span class="eyebrow">Log in</span><b>${esc(inT||'Not recorded')}</b></div><div><span class="eyebrow">${r?.submittedLocal?'Log out (report submitted)':'Log out (on submit)'}</span><b>${esc(outT)}</b></div><div><span class="eyebrow">Work hours</span><b>${esc(hm(mins))}</b></div><div><span class="eyebrow">Shift ends</span><b>${esc(m.shiftEnd||'18:00')}</b></div></div>`})()+
+     return`<div class="full worktime"><div><span class="eyebrow">Log in</span><b>${esc(inT||'Not recorded')}</b></div><div><span class="eyebrow">${r?.submittedLocal?'Log out (report submitted)':'Log out (on submit)'}</span><b>${esc(outT)}</b></div><div><span class="eyebrow">Work hours</span><b>${esc(hm(mins))}</b></div><div><span class="eyebrow">Shift</span><b>${esc(shiftCell(m))}</b></div></div>`})()+
    (r?.reviewed?`<div class="full note"><b>Reviewed by ${esc(r.reviewedBy)}</b>${r.reviewNote?': '+esc(r.reviewNote):''}</div>`:''),
    ro?null:fd=>{const d=dubai();const lin=r?.loginLocal||loginOf_(m.id,td)?.firstLogin||'';const wm=lin?minsBetween(lin,d.time):null;put('reports',id,{...(r||{}),...fd,cases:fd.cases===''?null:+fd.cases,loginLocal:lin,workedMins:wm,hours:wm==null?null:Math.round(wm/6)/10,date:td,staffId:m.id,clinicId:m.clinicId,dept:m.dept,
      completedIds:done.map(t=>t.id),completedTitles:done.map(t=>t.title),pendingIds:pending.map(t=>t.id),pendingTitles:pending.map(t=>t.title),
-     submittedAt:new Date().toISOString(),submittedLocal:d.date+'T'+d.time,late:d.time>(m.shiftEnd||'18:00'),createdAt:r?.createdAt||new Date().toISOString(),reviewed:false});toast('Report sent to '+(mgr?.name||'head office admin'))},
+     submittedAt:new Date().toISOString(),submittedLocal:d.date+'T'+d.time,late:d.time>shiftEndOf(m),createdAt:r?.createdAt||new Date().toISOString(),reviewed:false});toast('Report sent to '+(mgr?.name||'head office admin'))},
    {label:r?'Update report':'Submit report'})}
 
 function viewReport(id){
   const r=S.reports[id];if(!r)return;const s=S.staff[r.staffId]||{name:'Former staff'};const role=myRole(),canReview=role==='manager'||role==='admin',isAdm=role==='admin';
   const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
   modal(`${s.name} · ${fmtDate(r.date)}`,
-   `<dl class="kv full">${kv('Department',r.dept)}${kv('Clinic',clinicName(r.clinicId))}${(()=>{const w=workLine(r,r.staffId,r.date);return kv('Log in',w.inT||'Not recorded')+kv('Log out (report submitted)',dmy(r.submittedLocal)+' '+w.outT+(r.late?' (after shift end)':''))+kv('Work hours',hm(w.mins))})()}${kv('Summary',r.summary)}${kv('Extra work',r.extra)}${kv('Pending because',r.pendingReason)}${kv('Issues',r.issues)}${kv('Tomorrow',r.tomorrow)}${kv('Cases handled',r.cases)}${r.reviewed?kv('Admin review',(r.reviewedBy||'')+(r.reviewNote?': '+r.reviewNote:'')):''}${r.adminVerified?kv('MD verified',(r.adminBy||'')+(r.adminNote?': '+r.adminNote:'')):''}</dl>
+   `<dl class="kv full">${kv('Department',r.dept)}${kv('Clinic',clinicName(r.clinicId))}${(()=>{const w=workLine(r,r.staffId,r.date);return kv('Log in',(w.inT||'Not recorded')+(()=>{const a=loginOf_(r.staffId,r.date);return a?.status==='late'?` (late ${hm(a.lateMins)})`:a?.status==='early'?` (early ${hm(a.earlyMins)})`:a?.status==='ontime'?' (on time)':''})())+kv('Log out (report submitted)',dmy(r.submittedLocal)+' '+w.outT+(r.late?' (after shift end)':''))+kv('Work hours',hm(w.mins))})()}${kv('Summary',r.summary)}${kv('Extra work',r.extra)}${kv('Pending because',r.pendingReason)}${kv('Issues',r.issues)}${kv('Tomorrow',r.tomorrow)}${kv('Cases handled',r.cases)}${r.reviewed?kv('Admin review',(r.reviewedBy||'')+(r.reviewNote?': '+r.reviewNote:'')):''}${r.adminVerified?kv('MD verified',(r.adminBy||'')+(r.adminNote?': '+r.adminNote:'')):''}</dl>
    <div><div class="eyebrow">Completed (${r.completedTitles.length})</div><ul class="checklist">${r.completedTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>
    <div><div class="eyebrow">Pending (${r.pendingTitles.length})</div><ul class="checklist">${r.pendingTitles.map(t=>`<li>${esc(t)}</li>`).join('')||'<li class="mini">None</li>'}</ul></div>`+
    (isAdm?F('MD recommendation / comment',`<textarea name="note">${esc(r.adminNote||'')}</textarea>`,1):canReview?F('Admin comment',`<textarea name="note">${esc(r.reviewNote||'')}</textarea>`,1):(r.reviewNote?`<div class="full note">${esc(r.reviewNote)}</div>`:'')),
@@ -840,10 +852,11 @@ function clinicForm(id){const c=id?S.clinics[id]:{};
 function staffForm(id){const s=id?S.staff[id]:{role:'staff',shiftEnd:'18:00',dayOff:'0',clinicId:UI.clinic||'',active:true};
   modal(id?'Edit staff member':'Add staff member',F('Full name',`<input name="name" required value="${esc(s.name||'')}">`)+F('Department',`<select name="dept" required>${opts(DEPTS,s.dept,'Choose')}</select>`)+
    F('Clinic',`<select name="clinicId" required>${opts(clinicArr().map(c=>[c.id,c.name]),s.clinicId,'Choose')}</select>`)+F('Access',`<select name="role">${opts(adminOK?ROLES:ROLES.filter(r=>r[0]!=='admin'),s.role)}</select>`)+
-   F('Shift ends at',`<input type="time" name="shiftEnd" value="${esc(s.shiftEnd||'18:00')}">`)+F('Weekly day off',`<select name="dayOff">${opts([['','None (rotating)'],...DAYS.map((d,i)=>[String(i),d])],s.dayOff==null?'':String(s.dayOff))}</select>`)+
+   F('Shift timing',`<select name="shiftType" id="f-shiftType">${opts(SHIFTT,s.shiftType||'fixed')}</select>`)+F('Shift starts at',`<input type="time" name="shiftStart" class="f-fixed" value="${esc(s.shiftStart||'09:00')}">`)+F('Shift ends at',`<input type="time" name="shiftEnd" class="f-fixed" value="${esc(s.shiftEnd||"18:00")}">`)+F('Weekly day off',`<select name="dayOff">${opts([['','None (rotating)'],...DAYS.map((d,i)=>[String(i),d])],s.dayOff==null?'':String(s.dayOff))}</select>`)+
    F('Status',`<select name="active">${opts([['yes','Active'],['no','Inactive (left / on leave)']],s.active===false?'no':'yes')}</select>`),
    fd=>{if(!clinicArr().length){toast('Add a clinic first.');return false}put('staff',id||uid(),{...s,...fd,active:fd.active!=='no',startDate:s.startDate||today(),createdAt:s.createdAt||new Date().toISOString()});toast(id?'Saved':'Staff member added')},
-   {left:id?`<button type="button" class="btn danger" data-act="delStaff" data-id="${id}">Delete</button>`:''})}
+   {left:id?`<button type="button" class="btn danger" data-act="delStaff" data-id="${id}">Delete</button>`:''});
+  const st=document.getElementById('f-shiftType'),sync=()=>dlgForm.querySelectorAll('.f-fixed').forEach(i=>i.closest('label').style.display=st.value==='fixed'?'':'none');st.addEventListener('change',sync);sync()}
 
 /* ---------- sample data ---------- */
 async function loadSample(){
@@ -907,7 +920,7 @@ const ACT={
   rf:d=>{UI.rf=d.v;render()},
   loadSample:()=>loadSample(),
   signOut:()=>signOut(),
-  startDay:()=>{markLogin(PROFILE.staff_id);UI.view='myday';saveUI();toast('Good luck today! Log-in time recorded.');render()},
+  startDay:()=>{const pu=markLogin(PROFILE.staff_id);UI.view='myday';saveUI();toast(pu?.status==='early'?'🌟 Great start! You are early today.':pu?.status==='late'?`You are ${hm(pu.mins)} late today. This has been recorded.`:'Good luck today! Log-in time recorded.');render()},
   notifOn:()=>{lsSet('cod.notifAsked',true);enableNotifs()},
   notifOff:()=>disableNotifs(),
   notifLater:()=>{lsSet('cod.notifAsked',true);schedule()},
