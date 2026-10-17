@@ -106,6 +106,10 @@ textarea{min-height:70px;resize:vertical}
 .dpick .dbtn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:0 10px;cursor:pointer;font-size:1rem}
 .worktime{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;background:var(--surface-2,rgba(127,127,127,.08));border-radius:10px;padding:10px 12px}
 .worktime>div{display:flex;flex-direction:column;gap:2px}.worktime b{font-family:var(--f-mono);font-size:1.05rem}
+.startday{min-height:70vh;display:grid;place-items:center;padding:16px}
+.startday-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:32px 24px;max-width:460px;width:100%;text-align:center;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
+.startday-card h1{margin:0;font-size:1.6rem}.startday-card p{margin:0}
+.startday-btn{font-size:1.15rem;padding:14px 24px;border-radius:999px;margin:8px auto 0}
 .grid2 .row{grid-template-columns:auto minmax(0,1fr)}.grid2 .row .acts{grid-column:2;justify-content:flex-start}
 .chip{display:inline-flex;align-items:center;gap:4px;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:99px;white-space:nowrap;letter-spacing:.02em}
 .p-urgent{background:var(--red-soft);color:var(--red)}
@@ -301,10 +305,9 @@ async function startSession(session){
     else{const n=pl.new;if(n&&S[n.col])noteChange(n.col,n.id,S[n.col][n.id],n.data);if(n&&S[n.col])S[n.col]={...S[n.col],[n.id]:n.data}}schedule()})
    .on('postgres_changes',{event:'*',schema:'public',table:'profiles'},()=>loadProfiles().then(()=>{const p2=PROFILES[PROFILE.user_id];if(!p2)return signOut();PROFILE=p2;adminOK=p2.role==='admin';schedule()}))
    .subscribe();
-  if(!adminOK&&PROFILE.staff_id)markLogin(PROFILE.staff_id);
   schedule()}
 async function signOut(){try{await sb.auth.signOut()}catch{}PROFILE=null;PROFILES={};COLS.forEach(c=>S[c]={});if(channel){sb.removeChannel(channel);channel=null}UI.actingAs='';saveUI();if(dlg.open)dlg.close();document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML='';showAuth()}
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&PROFILE)loadAll().then(()=>{if(!adminOK&&PROFILE.staff_id)markLogin(PROFILE.staff_id);schedule()}).catch(()=>{})});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&PROFILE)loadAll().then(schedule).catch(()=>{})});
 
 /* ---------- desktop pop-up notifications ---------- */
 const NOTIF_OK=typeof Notification!=='undefined';
@@ -437,8 +440,16 @@ function scoreCell(s){const[l,c]=grade(s);const col=s==null?'var(--line)':s>=85?
 /* ---------- render ---------- */
 let raf=0;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;render()})}
 const NAV=[['admin','MD review',['admin','manager']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
+function needsStart(){const sid=PROFILE?.staff_id;const s=S.staff[sid];return!adminOK&&s&&s.role!=='admin'&&!loginOf_(sid,today())}
+function startDayScreen(){const s=S.staff[PROFILE.staff_id];const h=+dubai().time.slice(0,2);
+  return`<div class="startday"><div class="startday-card"><div class="eyebrow">${esc(new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long'}))} ${esc(dmy(today()))} · ${esc(dubai().time)}</div>
+   <h1>${h<12?'Good morning':h<17?'Good afternoon':'Good evening'}, ${esc(s.name.trim())}</h1>
+   <p>${esc(s.dept)} · ${esc(clinicName(s.clinicId))} · shift ends ${esc(s.shiftEnd||'18:00')}</p>
+   <button class="btn primary startday-btn" data-act="startDay">☀️ Let's start the day</button>
+   <p class="mini">Pressing this records your log-in time for today's end-of-shift report.</p></div></div>`}
 function render(){
   if(!PROFILE)return;
+  if(needsStart()){document.getElementById('nav').innerHTML='';document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b></span><span><button class="btn sm" data-act="signOut">Sign out</button></span>`;document.getElementById('main').innerHTML=startDayScreen();return}
   const role=myRole();const allowed=NAV.filter(n=>n[2].includes(role));
   if(role==='none'){document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML=topbar()+`<div class="empty"><h2>Choose who you are</h2><p>This login is not linked to a staff member. Ask the MD.</p></div>`;return}
   if(!allowed.find(n=>n[0]===UI.view))UI.view=allowed[0][0];
@@ -896,6 +907,7 @@ const ACT={
   rf:d=>{UI.rf=d.v;render()},
   loadSample:()=>loadSample(),
   signOut:()=>signOut(),
+  startDay:()=>{markLogin(PROFILE.staff_id);UI.view='myday';saveUI();toast('Good luck today! Log-in time recorded.');render()},
   notifOn:()=>{lsSet('cod.notifAsked',true);enableNotifs()},
   notifOff:()=>disableNotifs(),
   notifLater:()=>{lsSet('cod.notifAsked',true);schedule()},
