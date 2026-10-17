@@ -214,7 +214,7 @@ const CCATS=['Waiting time','Staff behaviour','Treatment outcome','Billing / pri
 const CHANNELS=['Walk-in','Phone','WhatsApp','Email','Google review','Social media'];
 const COLS=['clinics','staff','tasks','reports','complaints','requests'];
 const RTYPES=['Request','Others'];
-const RSTAT={pending:['Waiting for head office admin','warnc'],referred:['Referred to MD','s-progress'],recommended:['Referred to MD','s-progress'],not_recommended:['Referred to MD (not recommended)','bad'],approved:['Approved','ok'],rejected:['Rejected','bad']};
+const RSTAT={pending:['Waiting for head office admin','warnc'],referred:['Referred to MD','s-progress'],recommended:['Referred to MD','s-progress'],not_recommended:['Referred to MD (not recommended)','bad'],approved:['Approved','ok'],rejected:['Rejected','bad'],returned:['Returned with note','warnc']};
 
 /* ---------- time (Dubai) ---------- */
 const dtf=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
@@ -337,9 +337,10 @@ function eventsFor(col,o,n){
   if(col==='requests'){const line=`${who(n.staffId)} · ${n.type||'Request'}: ${n.title||''}${n.amount!=null?' · AED '+n.amount:''}`;
     if(!o&&n.staffId!==myId&&(role==='manager'&&n.status==='pending'||role==='admin'&&n.status==='referred'))add(role==='admin'?'Approval request for the MD':'New approval request',line+(n.details?'\n'+n.details:''),'requests',true);
     else if(o&&o.status!==n.status){
-      if(role==='admin'&&n.status==='referred'&&n.staffId!==myId)add('Request referred to you',`${line}\n${n.mgrBy||''}: ${n.mgrNote||''}`,'requests',true);
-      if(myId&&n.staffId===myId){const m={approved:'approved ✅',rejected:'rejected',referred:'referred to the MD'}[n.status];
-        if(m)add(`Your request was ${m}`,`${n.title||''}${n.status==='referred'?(n.mgrNote?'\n'+n.mgrNote:''):(n.adminNote?'\n'+(n.adminBy||'')+': '+n.adminNote:'')}`,'requests')}}}
+      if(role==='manager'&&o.status==='returned'&&n.status==='pending'&&n.staffId!==myId)add('Returned request resubmitted',`${line}\nReply: ${n.staffReply||''}`,'requests',true);
+      if(role==='admin'&&n.status==='referred'&&n.staffId!==myId)add(o.status==='returned'?'Returned request resubmitted':'Request referred to you',`${line}\n${n.mgrBy||''}: ${n.mgrNote||''}`,'requests',true);
+      if(myId&&n.staffId===myId){const m={approved:'approved ✅',rejected:'rejected',referred:o.status==='returned'?null:'referred to the MD',returned:'returned with a note'}[n.status];
+        if(m)add(`Your request was ${m}`,`${n.title||''}${n.status==='returned'?'\n'+(n.returnedBy||'')+': '+(n.returnNote||''):n.status==='referred'?(n.mgrNote?'\n'+n.mgrNote:''):(n.adminNote?'\n'+(n.adminBy||'')+': '+n.adminNote:'')}`,'requests')}}}
   if(col==='reports'){
     const fresh=n.submittedAt&&n.submittedAt!==o?.submittedAt;
     if(fresh&&n.staffId!==myId){const mgrs=staffArr().filter(s=>s.role==='manager'&&s.active!==false);const ownerRole=S.staff[n.staffId]?.role;
@@ -603,34 +604,40 @@ const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&
 const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>(myRole()==='manager'?!r.reviewed&&r.staffId!==me()?.id:!r.adminVerified)&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
 const aed=n=>n||n===0?'AED '+Number(n).toLocaleString('en-US'):'';
 const when=iso=>dmyt(iso);
+const retBy=r=>r.returnedBy&&r.returnedBy!==r.returnedRole?`${r.returnedBy} (${r.returnedRole||''})`:(r.returnedRole||r.returnedBy||'');
 const rstat=r=>r.status==='referred'&&r.sendTo==='md'?['Waiting for MD','s-progress']:(RSTAT[r.status]||['','']);
 function requestRow(r){const[l,c]=rstat(r);
-  return`<div class="row"><div class="pbar ${waiting(r)?'high':r.status==='approved'?'low':'urgent'}"></div><div style="min-width:0"><div class="t">${esc(r.title)}${r.amount?` <span class="mono" style="font-weight:500">· ${esc(aed(r.amount))}</span>`:''}</div>
+  return`<div class="row"><div class="pbar ${waiting(r)||r.status==='returned'?'high':r.status==='approved'?'low':'urgent'}"></div><div style="min-width:0"><div class="t">${esc(r.title)}${r.amount?` <span class="mono" style="font-weight:500">· ${esc(aed(r.amount))}</span>`:''}</div>
   <div class="m"><span class="chip ${c}">${l}</span><span>${esc(r.type)}</span><span>${esc(staffName(r.staffId))} · ${esc(r.dept||'')}</span><span>${esc(clinicName(r.clinicId))}</span>${r.neededBy?`<span>Needed by ${esc(fmtDate(r.neededBy))}</span>`:''}<span>Raised ${ago(r.createdAt)} ago</span></div>
+  ${r.status==='returned'&&r.returnNote?`<div class="m"><span class="missed-tag">Returned by ${esc(retBy(r))}: ${esc(r.returnNote)}</span></div>`:''}${r.staffReply&&r.status!=='returned'?`<div class="m"><span>Staff reply: ${esc(r.staffReply)}</span></div>`:''}
   ${r.mgrNote||r.adminNote?`<div class="m">${r.mgrNote?`<span>Referred: ${esc(r.mgrNote)}</span>`:''}${r.adminNote?`<span>${esc(r.decidedRole||'MD')}: ${esc(r.adminNote)}</span>`:''}</div>`:''}</div>
-  <div class="acts">${canAct(r)?`<button class="btn sm primary" data-act="decide" data-id="${r.id}">Decide</button>`:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`}</div></div>`}
+  <div class="acts">${r.status==='returned'&&r.staffId===me()?.id?`<button class="btn sm primary" data-act="resubmit" data-id="${r.id}">Reply &amp; resubmit</button>`:''}${canAct(r)?`<button class="btn sm primary" data-act="decide" data-id="${r.id}">Decide</button>`:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`}</div></div>`}
 function vRequests(){
   const role=myRole(),m=me();let R=reqArr().filter(inClinic);if(role==='staff')R=R.filter(r=>r.staffId===m?.id);
-  const f=UI.rf||'waiting';const cnt={waiting:R.filter(waiting).length,mine:R.filter(canAct).length};
+  const f=UI.rf||'waiting';const cnt={waiting:R.filter(waiting).length,mine:R.filter(canAct).length,returned:R.filter(r=>r.status==='returned').length};
   if(f==='waiting')R=R.filter(waiting);else if(f==='mine')R=R.filter(canAct);else if(f!=='all')R=R.filter(r=>r.status===f);
   R.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
-  const segs=[...(role!=='staff'?[['mine',`Needs my decision (${cnt.mine})`]]:[]),['waiting',`Waiting (${cnt.waiting})`],['approved','Approved'],['rejected','Rejected'],['all','All']];
+  const segs=[...(role!=='staff'?[['mine',`Needs my decision (${cnt.mine})`]]:[]),['waiting',`Waiting (${cnt.waiting})`],['returned',`Returned with note (${cnt.returned})`],['approved','Approved'],['rejected','Rejected'],['all','All']];
   return`<section class="panel"><div class="panel-head"><div class="seg" role="group" aria-label="Filter approvals">${segs.map(([k,l])=>`<button data-act="rf" data-v="${k}" aria-pressed="${f===k}">${l}</button>`).join('')}</div>
   ${m&&m.name?`<button class="btn primary" data-act="newRequest">Raise request</button>`:''}</div>
-  <div class="note">Staff raise a request to a head office admin or straight to the MD. A head office admin approves or rejects it, or refers it to the MD. Head office admins' own requests go straight to the MD.</div>
+  <div class="note">Staff raise a request to a head office admin or straight to the MD. A head office admin approves, rejects or returns it with a note, or refers it to the MD. Head office admins' own requests go straight to the MD.</div>
   <div class="list">${R.map(requestRow).join('')||'<div class="empty">No requests here.</div>'}</div></section>`}
 function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “Using as” first.');return}
   modal('Raise a request',(m.role==='staff'?F('Send to',`<select name="sendTo"><option value="hoa">Head office admin</option><option value="md">MD</option></select>`,1):'')+F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
    F('Request',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`${dateInput('neededBy','')}`),
    fd=>{const byMgr=m.role!=='staff',toMd=byMgr||fd.sendTo==='md';put('requests',uid(),{...fd,sendTo:toMd?'md':'hoa',amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:toMd?'referred':'pending',mgrNote:byMgr?'Raised by head office admin':'',createdAt:new Date().toISOString()});toast(toMd?'Sent to the MD':'Sent to head office admin')},{label:'Send request'})}
 function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
-  const btns=role==='admin'?`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn primary" type="submit" value="yes">Approve</button>`:`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn" type="submit" value="refer">Refer to MD</button><button class="btn primary" type="submit" value="yes">Approve</button>`;
-  modal(r.title,`<dl class="kv full">${kv('Status',rstat(r)[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',dmy(r.neededBy))}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Referred to MD',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Decision',r.adminBy||r.adminNote?`${r.adminBy||''} (${r.decidedRole||'MD'})${r.adminNote?': '+r.adminNote:''}`:'')}</dl>`+
-   (act?F(role==='admin'?'MD comment':'Comment (required when referring to the MD)',`<textarea name="note"></textarea>`,1):''),
+  const btns=role==='admin'?`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn" type="submit" value="return">Return with note</button><button class="btn primary" type="submit" value="yes">Approve</button>`:`<button class="btn danger" type="submit" value="no">Reject</button><button class="btn" type="submit" value="return">Return with note</button><button class="btn" type="submit" value="refer">Refer to MD</button><button class="btn primary" type="submit" value="yes">Approve</button>`;
+  modal(r.title,`<dl class="kv full">${kv('Status',rstat(r)[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',dmy(r.neededBy))}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Returned with note',r.returnNote?`${retBy(r)}: ${r.returnNote}`:'')}${kv('Staff reply',r.staffReply)}${kv('Referred to MD',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Decision',r.adminBy||r.adminNote?`${r.adminBy||''} (${r.decidedRole||'MD'})${r.adminNote?': '+r.adminNote:''}`:'')}</dl>`+
+   (act?F(role==='admin'?'MD comment (required when returning)':'Comment (required when returning or referring to the MD)',`<textarea name="note"></textarea>`,1):''),
    act?(fd,choice)=>{if(!choice)return false;const by=me()?.name||'MD',at=new Date().toISOString();
+     if(choice==='return'){if(!fd.note.trim()){toast('Add a note saying what the staff member needs to do.');return false}put('requests',id,{...r,status:'returned',prevStatus:r.status,returnNote:fd.note,returnedBy:by,returnedRole:role==='admin'?'MD':'Head office admin',returnedAt:at});toast('Returned to '+staffName(r.staffId));return}
      if(choice==='refer'){if(!fd.note.trim()){toast('Add a note for the MD.');return false}put('requests',id,{...r,status:'referred',mgrNote:fd.note,mgrBy:by,mgrAt:at});toast('Referred to the MD');return}
      put('requests',id,{...r,status:choice==='yes'?'approved':'rejected',adminNote:fd.note,adminBy:by,decidedRole:role==='admin'?'MD':'Head office admin',decidedAt:at});
      toast(choice==='yes'?'Approved':'Rejected')}:null,{buttons:btns,noFocus:1})}
+function resubmitForm(id){const r=S.requests[id];if(!r)return;
+  modal('Reply & resubmit',`<div class="full note"><b>${esc(r.title)}</b><br>Returned by ${esc(retBy(r))}: ${esc(r.returnNote||'')}</div>`+F('Your reply',`<textarea name="reply" required placeholder="What you have done or the information requested"></textarea>`,1),
+   fd=>{const back=r.prevStatus==='pending'?'pending':'referred';put('requests',id,{...r,status:back,staffReply:fd.reply,resubmittedAt:new Date().toISOString()});toast(back==='pending'?'Sent back to head office admin':'Sent back to the MD')},{label:'Resubmit'})}
 function referForm(id){const t=S.tasks[id];
   modal('Refer to MD for approval',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. The MD will verify or return it.</div>`+F('Note for the MD',`<textarea name="note" required></textarea>`,1),
    fd=>{const by=me()?.name||'Head office admin';put('tasks',id,{...t,verify:'referred',referNote:fd.note,referredBy:by,history:[...(t.history||[]),{at:new Date().toISOString(),by,what:'Referred to MD: '+fd.note}].slice(-20)});toast('Referred to the MD')},{label:'Refer to MD'})}
@@ -873,6 +880,7 @@ const ACT={
   referTask:d=>referForm(d.id),
   newRequest:()=>requestForm(),
   decide:d=>decideForm(d.id),
+  resubmit:d=>resubmitForm(d.id),
   rf:d=>{UI.rf=d.v;render()},
   loadSample:()=>loadSample(),
   signOut:()=>signOut(),
