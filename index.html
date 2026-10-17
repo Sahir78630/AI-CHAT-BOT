@@ -331,14 +331,18 @@ function eventsFor(col,o,n){
   if(col==='tasks'){const due=n.dueDate?` · due ${dmy(n.dueDate)}${n.dueTime?' '+n.dueTime:''}`:'';
     if(myId&&n.assigneeId===myId&&o?.assigneeId!==myId)add(n.priority==='urgent'?'Urgent task for you':n.priority==='high'?'High-priority task for you':'New task for you',`${n.title}${due}${n.createdBy?' · from '+n.createdBy:''}${n.notes?'\n'+n.notes:''}`,'myday',n.priority==='urgent'||n.priority==='high');
     else if(myId&&n.assigneeId===myId&&o){const h=n.history||[],oh=o.history||[],last=h[h.length-1];
-      if(h.length>oh.length&&last&&last.by!==myName)add('Update on your task',`${n.title}\n${last.what} · ${last.by}`,'myday',n.verify==='returned');
+      if(h.length>oh.length&&last&&last.by!==myName&&/^Note from /.test(last.what))add(/^Note from MD/.test(last.what)?'Update from the MD':'Update from head office admin',`${n.title}\n${last.what.replace(/^Note from [^:]+: /,'')} · ${last.by}`,'myday',true);
+      else if(h.length>oh.length&&last&&last.by!==myName)add('Update on your task',`${n.title}\n${last.what} · ${last.by}`,'myday',n.verify==='returned');
       else if((n.notes||'')!==(o.notes||''))add('Task notes updated',`${n.title}\n${n.notes||''}`,'myday')}
     {const h=n.history||[],last=h[h.length-1];if(o&&n.assigneeId!==myId&&myName&&n.createdBy===myName&&h.length>(o.history||[]).length&&last&&last.by!==myName&&/^Update:/.test(last.what))add(n.status==='blocked'?'Task blocked, needs help':'Progress update',`${n.title} · ${who(n.assigneeId)}\n${last.what.replace(/^Update: /,'')}`,'tasks',n.status==='blocked')}
+    if(o&&myName&&n.createdBy===myName&&n.assigneeId!==myId){
+      if(n.status==='progress'&&o.status==='todo')add('Task started',`${who(n.assigneeId)} started: ${n.title}`,'tasks');}
     if(!n.assigneeId&&!o&&sameDept(n))add('New task for your department',`${n.title}${due}`,'myday',n.priority==='urgent');
     const aRole=S.staff[n.assigneeId]?.role;
     if(n.status==='done'&&o&&o.status!=='done'&&n.assigneeId!==myId&&n.verify!=='verified'){
       if(role==='manager'&&aRole!=='admin'&&aRole!=='manager')add('Task ready to verify',`${who(n.assigneeId)} finished: ${n.title}`,'admin');
       if(role==='admin'&&aRole==='manager')add('Task ready for MD verification',`${who(n.assigneeId)} finished: ${n.title}`,'admin')}
+    if(o&&myName&&n.createdBy===myName&&n.assigneeId!==myId&&n.status==='done'&&o.status!=='done'&&!out.some(e=>/ready/i.test(e.title)))add('Task completed',`${who(n.assigneeId)} finished: ${n.title}`,'tasks');
     if(role==='admin'&&n.verify==='referred'&&o?.verify!=='referred')add('Task referred to you',`${n.title} · ${who(n.assigneeId)}\n${n.referredBy||''}: ${n.referNote||''}`,'admin',true)}
   if(col==='requests'){const line=`${who(n.staffId)} · ${n.type||'Request'}: ${n.title||''}${n.amount!=null?' · AED '+n.amount:''}`;
     if(!o&&n.staffId!==myId&&(role==='manager'&&n.status==='pending'||role==='admin'&&n.status==='referred'))add(role==='admin'?'Approval request for the MD':'New approval request',line+(n.details?'\n'+n.details:''),'requests',true);
@@ -492,7 +496,7 @@ function taskRow(t,o={}){
   const missed=isMissed(t),over=isOverdue(t);
   const due=t.dueDate?`${fmtDate(t.dueDate)}${t.dueTime?' '+t.dueTime:''}`:'No due date';
   const acts=o.verify?`<button class="btn sm primary" data-act="verifyTask" data-id="${t.id}">Verify</button><button class="btn sm" data-act="returnTask" data-id="${t.id}">Return with note</button>${myRole()==='manager'?`<button class="btn sm" data-act="referTask" data-id="${t.id}">Refer to MD</button>`:''}`:o.compact?'':t.status==='done'?`<button class="btn sm" data-act="reopen" data-id="${t.id}">Reopen</button>`:
-   `${missed?`<button class="btn sm" data-act="carry" data-id="${t.id}">Carry to today</button>`:''}${t.status==='todo'?`<button class="btn sm" data-act="start" data-id="${t.id}">Start</button>`:`<button class="btn sm" data-act="taskUpdate" data-id="${t.id}">Add update</button>`}<button class="btn sm primary" data-act="done" data-id="${t.id}">Done</button>`;
+   (isBoss()&&t.assigneeId&&t.assigneeId!==myStaffId()?`<button class="btn sm" data-act="bossNote" data-id="${t.id}">Send update</button>`:'')+`${missed?`<button class="btn sm" data-act="carry" data-id="${t.id}">Carry to today</button>`:''}${t.status==='todo'?`<button class="btn sm" data-act="start" data-id="${t.id}">Start</button>`:`<button class="btn sm" data-act="taskUpdate" data-id="${t.id}">Add update</button>`}<button class="btn sm primary" data-act="done" data-id="${t.id}">Done</button>`;
   const ab=assigner(t);
   return`<div class="row ${ab?ab.k:''}"><div class="pbar ${t.priority}" title="${PRIL[t.priority]} priority"></div>
   <div style="min-width:0"><div class="t">${esc(t.title)}</div><div class="m">
@@ -500,7 +504,7 @@ function taskRow(t,o={}){
    ${missed?`<span class="missed-tag">Missed · ${esc(due)}</span>`:over?`<span class="missed-tag">Overdue · ${esc(due)}</span>`:`<span>Due ${esc(due)}</span>`}
    ${t.status==='done'?(t.verify==='verified'?`<span class="chip ok" title="${esc(t.verifiedBy||'')}">Verified${t.verifiedRole?' · '+esc(t.verifiedRole):''}</span>`:t.verify==='referred'?`<span class="chip s-progress" title="${esc(t.referNote||'')}">Referred to MD</span>`:'<span class="chip muted">Awaiting verification</span>'):''}
    ${t.verify==='returned'&&t.recommendation?`<span class="missed-tag">Returned by ${esc(t.returnedBy||'MD')}: ${esc(t.recommendation)}</span>`:''}
-   ${t.lastUpdate&&t.status!=='done'?`<span class="upd" title="${esc(t.lastUpdate.by)} · ${esc(when(t.lastUpdate.at))}">📝 ${esc(t.lastUpdate.text)} · ${esc(ago(t.lastUpdate.at))}</span>`:''}
+   ${t.lastUpdate&&t.status!=='done'?`<span class="upd" title="${esc(t.lastUpdate.by)} · ${esc(when(t.lastUpdate.at))}">📝 ${t.lastUpdate.role?`<b>${esc(t.lastUpdate.role==='admin'?'MD':'Head office')}:</b> `:''}${esc(t.lastUpdate.text)} · ${esc(ago(t.lastUpdate.at))}</span>`:''}
    ${t.carryCount?`<span class="chip goldc" title="Originally due ${esc(dmy(t.originalDue))}">Carried ×${t.carryCount}</span>`:''}
    ${o.noWho?'':`<span>${esc(staffName(t.assigneeId))}</span>`}<span>${esc(t.dept||'')}</span><span>${esc(clinicName(t.clinicId))}</span>
    ${t.recurrence&&t.recurrence!=='none'?`<span>↻ ${esc(REC.find(r=>r[0]===t.recurrence)[1])}</span>`:''}</div></div>
@@ -681,6 +685,16 @@ function updateForm(id){const t=S.tasks[id];if(!t)return;const prev=(t.history||
    F('Task is',`<select name="status">${opts([['progress','In progress'],['blocked','Blocked (needs help)']],t.status==='blocked'?'blocked':'progress')}</select>`)+
    (prev.length?`<div class="full"><div class="eyebrow">Earlier updates</div><ul class="checklist">${prev.map(h=>`<li>${esc(h.what.replace(/^Update: /,''))} · ${esc(h.by)} · ${esc(dmyt(h.at))}</li>`).join('')}</ul></div>`:''),
    fd=>{const by=me()?.name||'MD',at=new Date().toISOString();put('tasks',id,{...t,status:fd.status,lastUpdate:{text:fd.text,by,at},history:[...(t.history||[]),{at,by,what:'Update: '+fd.text}].slice(-20)});toast('Update saved')},{label:'Save update'})}
+const isBoss=()=>['admin','manager'].includes(myRole());
+const myStaffId=()=>PROFILE?.staff_id||me()?.id||'';
+function bossNoteForm(id){const t=S.tasks[id];if(!t)return;const r=myRole(),from=r==='admin'?'MD':'Head office admin';
+  const prev=(t.history||[]).filter(h=>/^(Update|Note from)/.test(h.what)).slice(-5).reverse();
+  modal('Send update to staff',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))} · ${esc(STATUSL[t.status]||'')}. They get a pop-up straight away.</div>`+
+   F('Update / instruction',`<textarea name="text" required placeholder="e.g. Please finish this before 3pm, patient is waiting"></textarea>`,1)+
+   F('Priority',`<select name="priority">${opts(Object.entries(PRIL),t.priority)}</select>`)+
+   (prev.length?`<div class="full"><div class="eyebrow">Earlier updates</div><ul class="checklist">${prev.map(h=>`<li>${esc(h.what.replace(/^Update: /,''))} · ${esc(h.by)} · ${esc(dmyt(h.at))}</li>`).join('')}</ul></div>`:''),
+   fd=>{const by=me()?.name||'MD',at=new Date().toISOString(),what=`Note from ${from}: ${fd.text}`+(fd.priority!==t.priority?` (priority now ${PRIL[fd.priority]})`:'');
+    put('tasks',id,{...t,priority:fd.priority,lastUpdate:{text:fd.text,by,at,role:r},history:[...(t.history||[]),{at,by,what}].slice(-20)});toast(`Update sent to ${staffName(t.assigneeId)}`)},{label:'Send update'})}
 function returnForm(id){const t=S.tasks[id];
   modal('Return task with a recommendation',`<div class="full note"><b>${esc(t.title)}</b> · ${esc(staffName(t.assigneeId))}. It goes back on their list as To do with your note.</div>`+
    F('What needs to be done',`<textarea name="note" required placeholder="e.g. Attach the signed approval letter before closing"></textarea>`,1)+F('New due date',`${dateInput('due',today())}`),
@@ -913,6 +927,7 @@ const ACT={
   verifyAll:()=>{const L=toVerify();L.forEach(t=>ACT.verifyTask({id:t.id}));toast(`${L.length} tasks verified`)},
   returnTask:d=>returnForm(d.id),
   taskUpdate:d=>updateForm(d.id),
+  bossNote:d=>bossNoteForm(d.id),
   referTask:d=>referForm(d.id),
   newRequest:()=>requestForm(),
   decide:d=>decideForm(d.id),
