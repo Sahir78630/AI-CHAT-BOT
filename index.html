@@ -462,8 +462,16 @@ function startDayScreen(){const s=S.staff[PROFILE.staff_id];const h=+dubai().tim
    <p>${esc(s.dept)} · ${esc(clinicName(s.clinicId))} · ${esc(shiftText(s))}</p>
    <button class="btn primary startday-btn" data-act="startDay">☀️ Let's start the day</button>
    <p class="mini">Pressing this records your log-in time for today's end-of-shift report.</p></div></div>`}
+// Staff may only use the desk on a computer; the MD and head office admins can use any device.
+function isMobileDevice(){const ua=navigator.userAgent||'';return!!(navigator.userAgentData&&navigator.userAgentData.mobile)||/Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|Opera Mini|IEMobile/i.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1)}
+const mobileBlocked=()=>PROFILE&&PROFILE.role==='staff'&&!adminOK&&isMobileDevice();
+function mobileBlockScreen(){return`<div class="startday"><div class="startday-card"><div class="eyebrow">Computer only</div>
+   <h1>Please use a computer</h1><p>Clinic Ops Desk is available to staff on a desktop or laptop only. Open <b>${esc(location.host)}</b> on your clinic computer to start your day, update tasks and submit your report.</p>
+   <p class="mini">Signed in as ${esc(PROFILE.username)}. Mobile access is limited to the MD and head office admins.</p>
+   <button class="btn" data-act="signOut">Sign out</button></div></div>`}
 function render(){
   if(!PROFILE)return;
+  if(mobileBlocked()){document.getElementById('nav').innerHTML='';document.getElementById('railFoot').innerHTML='';document.getElementById('main').innerHTML=mobileBlockScreen();return}
   if(needsStart()){document.getElementById('nav').innerHTML='';document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b></span><span><button class="btn sm" data-act="signOut">Sign out</button></span>`;document.getElementById('main').innerHTML=startDayScreen();return}
   const role=myRole();const allowed=NAV.filter(n=>n[2].includes(role));
   if(role==='none'){document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML=topbar()+`<div class="empty"><h2>Choose who you are</h2><p>This login is not linked to a staff member. Ask the MD.</p></div>`;return}
