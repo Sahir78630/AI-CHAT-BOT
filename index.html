@@ -494,7 +494,7 @@ function render(){
   const role=myRole();const allowed=NAV.filter(n=>n[2].includes(role));
   if(role==='none'){document.getElementById('nav').innerHTML='';document.getElementById('main').innerHTML=topbar()+`<div class="empty"><h2>Choose who you are</h2><p>This login is not linked to a staff member. Ask the MD.</p></div>`;return}
   if(!allowed.find(n=>n[0]===UI.view))UI.view=allowed[0][0];
-  const reqWait=reqArr().filter(r=>canAct(r)).length;
+  const reqWait=reqArr().filter(inMyQueue).length;
   const missedN=taskArr().filter(t=>isMissed(t)&&inClinic(t)).length;
   const openC=Object.values(S.complaints).filter(c=>(c.status==='new'||c.status==='investigating')&&inClinic(c)).length;
   const myOpen=UI.actingAs?taskArr().filter(t=>t.assigneeId===UI.actingAs&&isOpen(t)&&t.dueDate<=today()).length:0;
@@ -664,9 +664,15 @@ function vSetup(){
 /* ---------- admin review & approvals ---------- */
 const reqArr=()=>Object.entries(S.requests).map(([id,r])=>({id,...r}));
 const waiting=r=>['pending','referred','recommended','not_recommended'].includes(r.status);
+// The MD's queue holds only what head office admins referred, plus head office admins' own items.
+// With no active head office admin, the MD sees everything.
+const hasHOA=()=>Object.values(S.staff).some(x=>x.role==='manager'&&x.active!==false);
+const bossOwn=id=>['manager','admin'].includes(S.staff[id]?.role);
+const forMD=(kind,x)=>!hasHOA()||bossOwn(kind==='task'?x.assigneeId:x.staffId)||(kind==='task'&&x.verify==='referred')||(kind==='req'&&['referred','recommended','not_recommended'].includes(x.status));
+const inMyQueue=r=>canAct(r)&&(myRole()!=='admin'||forMD('req',r));
 function canAct(r){const role=myRole();if(role==='admin')return waiting(r);if(role==='manager')return r.status==='pending'&&r.staffId!==me()?.id;return false}
-const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&&inClinic(t)&&!(myRole()==='manager'&&(t.assigneeId===me()?.id||t.verify==='referred'))).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
-const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>(myRole()==='manager'?!r.reviewed&&r.staffId!==me()?.id:!r.adminVerified)&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
+const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&&inClinic(t)&&(myRole()!=='admin'||forMD('task',t))&&!(myRole()==='manager'&&(t.assigneeId===me()?.id||t.verify==='referred'))).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
+const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>(myRole()==='manager'?!r.reviewed&&r.staffId!==me()?.id:!r.adminVerified&&forMD('report',r))&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
 const aed=n=>n||n===0?'AED '+Number(n).toLocaleString('en-US'):'';
 const when=iso=>dmyt(iso);
 const retBy=r=>r.returnedBy&&r.returnedBy!==r.returnedRole?`${r.returnedBy} (${r.returnedRole||''})`:(r.returnedRole||r.returnedBy||'');
@@ -679,8 +685,8 @@ function requestRow(r){const[l,c]=rstat(r);
   <div class="acts">${r.status==='returned'&&r.staffId===me()?.id?`<button class="btn sm primary" data-act="resubmit" data-id="${r.id}">Reply &amp; resubmit</button>`:''}${canAct(r)?`<button class="btn sm primary" data-act="decide" data-id="${r.id}">Decide</button>`:`<button class="btn sm" data-act="decide" data-id="${r.id}">Open</button>`}</div></div>`}
 function vRequests(){
   const role=myRole(),m=me();let R=reqArr().filter(inClinic);if(role==='staff')R=R.filter(r=>r.staffId===m?.id);
-  const f=UI.rf||'waiting';const cnt={waiting:R.filter(waiting).length,mine:R.filter(canAct).length,returned:R.filter(r=>r.status==='returned').length};
-  if(f==='waiting')R=R.filter(waiting);else if(f==='mine')R=R.filter(canAct);else if(f!=='all')R=R.filter(r=>r.status===f);
+  const f=UI.rf||'waiting';const cnt={waiting:R.filter(waiting).length,mine:R.filter(inMyQueue).length,returned:R.filter(r=>r.status==='returned').length};
+  if(f==='waiting')R=R.filter(waiting);else if(f==='mine')R=R.filter(inMyQueue);else if(f!=='all')R=R.filter(r=>r.status===f);
   R.sort((a,b)=>(b.createdAt||'').localeCompare(a.createdAt||''));
   const segs=[...(role!=='staff'?[['mine',`Needs my decision (${cnt.mine})`]]:[]),['waiting',`Waiting (${cnt.waiting})`],['returned',`Returned with note (${cnt.returned})`],['approved','Approved'],['rejected','Rejected'],['all','All']];
   return`<section class="panel"><div class="panel-head"><div class="seg" role="group" aria-label="Filter approvals">${segs.map(([k,l])=>`<button data-act="rf" data-v="${k}" aria-pressed="${f===k}">${l}</button>`).join('')}</div>
@@ -735,7 +741,7 @@ function activity(who,days){const since=addDays(today(),-days),E=[];
   return E.sort((a,b)=>(b.at||'').localeCompare(a.at||''))}
 function vAdmin(){
   if(!Object.keys(S.staff).length)return emptySetup();
-  const W=reqArr().filter(inClinic).filter(canAct).sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')),V=toVerify(),RV=reportsToVerify();
+  const W=reqArr().filter(inClinic).filter(inMyQueue).sort((a,b)=>(a.createdAt||'').localeCompare(b.createdAt||'')),V=toVerify(),RV=reportsToVerify();
   const openC=Object.values(S.complaints).filter(c=>inClinic(c)&&(c.status==='new'||c.status==='investigating')).length;
   const who=UI.actWho||'',days=UI.actDays||7,E=activity(who,days);
   return`<div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
