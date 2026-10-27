@@ -211,7 +211,7 @@ const STATUSL=Object.fromEntries(STATUS);
 const ROLES=[['staff','Staff'],['manager','Head office admin'],['admin','MD']];
 const ROLEL=Object.fromEntries(ROLES);
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-const REC=[['none','One-off'],['daily','Every day'],['weekly','Every week'],['monthly','Every month']];
+const REC=[['none','One-off'],['daily','Every day'],['weekly','Every week'],['monthly','Every month'],['yearly','Every year']];
 const CSTAT=[['new','New'],['investigating','Investigating'],['resolved','Resolved'],['closed','Closed']];
 const CSTATL=Object.fromEntries(CSTAT);
 const SEV=[['critical','Critical',4],['high','High',24],['medium','Medium',48],['low','Low',72]];
@@ -426,7 +426,7 @@ function setStatus(t,st){const nt={...t};delete nt.id;nt.status=st;
   nt.history=[...(t.history||[]),{at:new Date().toISOString(),by:me()?.name||'MD',what:'Status: '+STATUSL[st]}].slice(-20);
   if(st==='done'){nt.completedAt=new Date().toISOString();nt.completedLocal=nowKey();nt.verify='pending';delete nt.verifiedBy;delete nt.verifiedAt;
     if(t.recurrence&&t.recurrence!=='none'&&!t.nextCreated){nt.nextCreated=true;const base=t.dueDate||today();
-      let nd=t.recurrence==='daily'?addDays(base,1):t.recurrence==='weekly'?addDays(base,7):addMonths(base,1);if(nd<today())nd=today();
+      let nd=t.recurrence==='daily'?addDays(base,1):t.recurrence==='weekly'?addDays(base,7):t.recurrence==='yearly'?addMonths(base,12):addMonths(base,1);if(nd<today())nd=today();
       const n={title:t.title,notes:t.notes||'',clinicId:t.clinicId,dept:t.dept,assigneeId:t.assigneeId,priority:t.priority,dueDate:nd,dueTime:t.dueTime||'',recurrence:t.recurrence,status:'todo',createdAt:new Date().toISOString(),createdBy:t.createdBy||'',createdByRole:t.createdByRole,carryCount:0,sample:t.sample||undefined,history:[]};
       put('tasks',uid(),n)}}
   else{delete nt.completedAt;delete nt.completedLocal;if(nt.verify!=='returned')delete nt.verify}
