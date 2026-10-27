@@ -298,6 +298,7 @@ async function startSession(session){
   PROFILE=p;adminOK=p.role==='admin';if(!adminOK){UI.actingAs=p.staff_id||'';UI.clinic=''}
   document.getElementById('auth').hidden=true;document.getElementById('main').innerHTML='<div class="empty">Loading your workspace…</div>';
   try{await Promise.all([loadAll(),loadProfiles()])}catch(e){toast('Could not load data. Check your connection.')}
+  setTimeout(checkReminders,3000);
   
   mode='shared';
   if(channel)sb.removeChannel(channel);
@@ -371,6 +372,17 @@ function noteChange(col,id,o,n){
   if(!PROFILE||!n)return;const t=recentWrites[col+'/'+id];if(t&&Date.now()-t<8000)return;
   let ev=[];try{ev=eventsFor(col,o,n)}catch(e){console.warn(e)}
   if(!ev.length)return;nQueue.push(...ev);clearTimeout(nTimer);nTimer=setTimeout(flushNotifs,1200)}
+// Two-week heads-up for monthly and yearly tasks, once per task per person (remembered in this browser).
+const remMem={};
+function checkReminders(){if(!PROFILE)return;
+  const myId=PROFILE.staff_id||'',my=S.staff[myId]||{},myName=my.name||(PROFILE.role==='admin'?'MD':''),td=today(),lim=addDays(td,SOON);
+  let seen={};try{seen=JSON.parse(localStorage.getItem('cod-rem-'+PROFILE.user_id)||'{}')}catch{}seen={...remMem,...seen};
+  const ev=[];Object.entries(S.tasks).forEach(([id,t])=>{if(!['monthly','yearly'].includes(t.recurrence)||!isOpen(t)||!t.dueDate||t.dueDate<=td||t.dueDate>lim)return;
+    const mine=myId&&t.assigneeId===myId,assigned=myName&&t.createdBy===myName&&t.assigneeId!==myId;if(!mine&&!assigned)return;
+    const k=id+'@'+t.dueDate;if(seen[k])return;seen[k]=1;const days=Math.round((new Date(t.dueDate)-new Date(td))/864e5);
+    ev.push({title:`${t.recurrence==='yearly'?'Yearly':'Monthly'} task due in ${days} day${days===1?'':'s'}`,body:`${t.title} · due ${dmy(t.dueDate)}${t.dueTime?' '+t.dueTime:''}${assigned?' · '+staffName(t.assigneeId):''}`,view:mine?'myday':'tasks',urgent:days<=3})});
+  Object.assign(remMem,seen);try{localStorage.setItem('cod-rem-'+PROFILE.user_id,JSON.stringify(seen))}catch{}
+  if(ev.length){nQueue.push(...ev);clearTimeout(nTimer);nTimer=setTimeout(flushNotifs,1200)}}
 function flushNotifs(){const q=nQueue;nQueue=[];if(!q.length)return;
   const one=q.length===1?q[0]:{title:`${q.length} new updates for you`,body:q.slice(0,4).map(e=>'• '+e.title+': '+e.body.split('\n')[0]).join('\n'),view:q[0].view,urgent:q.some(e=>e.urgent)};
   toast(one.title);
@@ -394,6 +406,8 @@ const clinicName=id=>S.clinics[id]?.name||'—';
 const staffName=id=>S.staff[id]?.name||'Unassigned';
 const dueKey=t=>t.dueDate+'T'+(t.dueTime||'23:59');
 const isOpen=t=>t.status!=='done';
+// Open tasks due more than 14 days ahead (mostly next month's / next year's repeat) live under "Upcoming".
+const SOON=14,isFar=t=>isOpen(t)&&!!t.dueDate&&t.dueDate>addDays(today(),SOON);
 const isOverdue=t=>isOpen(t)&&t.dueDate&&dueKey(t)<nowKey();
 const isMissed=t=>isOpen(t)&&t.dueDate&&t.dueDate<today();
 function inClinic(x){return!UI.clinic||x.clinicId===UI.clinic}
@@ -527,7 +541,7 @@ function emptySetup(){return`<div class="empty"><h2>Set up your clinics and team
 function vDashboard(){
   if(!Object.keys(S.staff).length)return emptySetup();
   const T=taskArr().filter(inClinic),td=today();
-  const open=T.filter(isOpen),missed=T.filter(isMissed).sort(taskSort),dueToday=open.filter(t=>t.dueDate===td),doneToday=T.filter(t=>t.status==='done'&&(t.completedLocal||'').startsWith(td));
+  const upc=T.filter(isFar).length,open=T.filter(t=>isOpen(t)&&!isFar(t)),missed=T.filter(isMissed).sort(taskSort),dueToday=open.filter(t=>t.dueDate===td),doneToday=T.filter(t=>t.status==='done'&&(t.completedLocal||'').startsWith(td));
   const staff=staffArr().filter(inClinic).filter(reportsDue).filter(s=>worksOn(s,td));
   const subm=staff.filter(s=>reportFor(s.id,td)),missing=staff.filter(s=>!reportFor(s.id,td));
   const C=Object.entries(S.complaints).map(([id,c])=>({id,...c})).filter(inClinic).filter(c=>c.status==='new'||c.status==='investigating');
@@ -535,7 +549,7 @@ function vDashboard(){
   const urgentOpen=open.filter(t=>t.priority==='urgent');
   const eff=calc(7,'dept');
   return`<div class="kpis">
-   <div class="kpi"><span class="v">${open.length}</span><span class="l">Open tasks</span></div>
+   <div class="kpi"><span class="v">${open.length}</span><span class="l">Open tasks · next ${SOON} days${upc?` <span class="mini">(+${upc} upcoming)</span>`:''}</span></div>
    <div class="kpi ${missed.length?'warn':''}"><span class="v">${missed.length}</span><span class="l">Missed, need carry-over</span></div>
    <div class="kpi"><span class="v">${urgentOpen.length}</span><span class="l">Urgent still open</span></div>
    <div class="kpi"><span class="v">${doneToday.length}<span class="mini"> / ${dueToday.length+doneToday.length}</span></span><span class="l">Done today (of today's load)</span></div>
@@ -580,12 +594,12 @@ function vTasks(){
   const f=UI.tf;let T=taskArr().filter(inClinic);
   if(f.q){const q=f.q.toLowerCase();T=T.filter(t=>(t.title+' '+(t.notes||'')).toLowerCase().includes(q))}
   if(f.dept)T=T.filter(t=>t.dept===f.dept);if(f.pri)T=T.filter(t=>t.priority===f.pri);if(f.who)T=T.filter(t=>t.assigneeId===f.who);
-  if(f.status==='open')T=T.filter(isOpen);else if(f.status==='missed')T=T.filter(isMissed);else if(f.status==='done')T=T.filter(t=>t.status==='done');else if(f.status==='today')T=T.filter(t=>t.dueDate===today());
+  if(f.status==='open')T=T.filter(t=>isOpen(t)&&!isFar(t));else if(f.status==='upcoming')T=T.filter(isFar).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));else if(f.status==='missed')T=T.filter(isMissed);else if(f.status==='done')T=T.filter(t=>t.status==='done');else if(f.status==='today')T=T.filter(t=>t.dueDate===today());
   T.sort(f.status==='done'?(a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''):taskSort);
   const missedN=T.filter(isMissed).length;
   return`<section class="panel"><div class="filters">
    <label class="f">Search<input id="tf-q" data-input="tf.q" value="${esc(f.q)}" placeholder="Task title or notes"></label>
-   <label class="f">Show<select data-change="tf.status">${opts([['open','Open'],['today','Due today'],['missed','Missed'],['done','Completed'],['all','All']],f.status)}</select></label>
+   <label class="f">Show<select data-change="tf.status">${opts([['open',`Open (next ${SOON} days)`],['today','Due today'],['upcoming',`Upcoming (after ${SOON} days)`],['missed','Missed'],['done','Completed'],['all','All']],f.status)}</select></label>
    <label class="f">Department<select data-change="tf.dept">${opts(DEPTS,f.dept,'All departments')}</select></label>
    <label class="f">Priority<select data-change="tf.pri">${opts(PRI.map(p=>[p[0],p[1]]),f.pri,'Any priority')}</select></label>
    <label class="f">Assigned to<select data-change="tf.who">${opts(staffArr().filter(inClinic).map(s=>[s.id,s.name]),f.who,'Anyone')}</select></label>
@@ -966,7 +980,7 @@ document.addEventListener('change',e=>{const k=e.target.dataset.change;if(!k)ret
   else if(k==='clinic')UI.clinic=v;else if(k==='actWho')UI.actWho=v;else if(k==='actDays')UI.actDays=+v;else if(k==='rDate')UI.rDate=v;else if(k.startsWith('tf.'))UI.tf[k.slice(3)]=v;
   saveUI();render()});
 let qT;document.addEventListener('input',e=>{if(e.target.dataset.input!=='tf.q')return;UI.tf.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>{saveUI();render();const el=document.getElementById('tf-q');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)});
-setInterval(()=>{if(!dlg.open)schedule()},60000);
+setInterval(()=>{if(!dlg.open)schedule();try{checkReminders()}catch(e){}},60000);
 boot();
 </script>
 </body>
