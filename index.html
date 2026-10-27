@@ -668,15 +668,17 @@ const waiting=r=>['pending','referred','recommended','not_recommended'].includes
 // With no active head office admin, the MD sees everything.
 const hasHOA=()=>Object.values(S.staff).some(x=>x.role==='manager'&&x.active!==false);
 const bossOwn=id=>['manager','admin'].includes(S.staff[id]?.role);
-const forMD=(kind,x)=>!hasHOA()||bossOwn(kind==='task'?x.assigneeId:x.staffId)||(kind==='task'&&x.verify==='referred')||(kind==='req'&&['referred','recommended','not_recommended'].includes(x.status));
+const forMD=(kind,x)=>!hasHOA()||bossOwn(kind==='task'?x.assigneeId:x.staffId)||(kind==='task'&&x.verify==='referred')||(kind==='req'&&['referred','recommended','not_recommended'].includes(x.status)&&!staffDirect(x));
 const inMyQueue=r=>canAct(r)&&(myRole()!=='admin'||forMD('req',r));
-function canAct(r){const role=myRole();if(role==='admin')return waiting(r);if(role==='manager')return r.status==='pending'&&r.staffId!==me()?.id;return false}
+function canAct(r){const role=myRole();if(role==='admin')return waiting(r);if(role==='manager')return(r.status==='pending'||staffDirect(r))&&r.staffId!==me()?.id;return false}
 const toVerify=()=>taskArr().filter(t=>t.status==='done'&&t.verify!=='verified'&&inClinic(t)&&(myRole()!=='admin'||forMD('task',t))&&!(myRole()==='manager'&&(t.assigneeId===me()?.id||t.verify==='referred'))).sort((a,b)=>(b.completedAt||'').localeCompare(a.completedAt||''));
 const reportsToVerify=()=>Object.entries(S.reports).map(([id,r])=>({id,...r})).filter(r=>(myRole()==='manager'?!r.reviewed&&r.staffId!==me()?.id:!r.adminVerified&&forMD('report',r))&&inClinic(r)&&r.date>=addDays(today(),-14)).sort((a,b)=>(b.submittedAt||'').localeCompare(a.submittedAt||''));
 const aed=n=>n||n===0?'AED '+Number(n).toLocaleString('en-US'):'';
 const when=iso=>dmyt(iso);
 const retBy=r=>r.returnedBy&&r.returnedBy!==r.returnedRole?`${r.returnedBy} (${r.returnedRole||''})`:(r.returnedRole||r.returnedBy||'');
-const rstat=r=>r.status==='referred'&&r.sendTo==='md'?['Waiting for MD','s-progress']:(RSTAT[r.status]||['','']);
+// Older staff requests sent straight to the MD are now handled by head office admins like any other.
+const staffDirect=r=>r.status==='referred'&&r.sendTo==='md'&&!r.mgrBy&&S.staff[r.staffId]?.role==='staff';
+const rstat=r=>staffDirect(r)?['Waiting for head office admin','s-progress']:r.status==='referred'&&r.sendTo==='md'?['Waiting for MD','s-progress']:(RSTAT[r.status]||['','']);
 function requestRow(r){const[l,c]=rstat(r);
   return`<div class="row"><div class="pbar ${waiting(r)||r.status==='returned'?'high':r.status==='approved'?'low':'urgent'}"></div><div style="min-width:0"><div class="t">${esc(r.title)}${r.amount?` <span class="mono" style="font-weight:500">· ${esc(aed(r.amount))}</span>`:''}</div>
   <div class="m"><span class="chip ${c}">${l}</span><span>${esc(r.type)}</span><span>${esc(staffName(r.staffId))} · ${esc(r.dept||'')}</span><span>${esc(clinicName(r.clinicId))}</span>${r.neededBy?`<span>Needed by ${esc(fmtDate(r.neededBy))}</span>`:''}<span>Raised ${ago(r.createdAt)} ago</span></div>
@@ -694,7 +696,7 @@ function vRequests(){
   <div class="note">Staff raise a request to a head office admin or straight to the MD. A head office admin approves, rejects or returns it with a note, or refers it to the MD. Head office admins' own requests go straight to the MD.</div>
   <div class="list">${R.map(requestRow).join('')||'<div class="empty">No requests here.</div>'}</div></section>`}
 function requestForm(){const m=me();if(!m||!m.name){toast('Pick your name in “Using as” first.');return}
-  modal('Raise a request',(m.role==='staff'?F('Send to',`<select name="sendTo"><option value="hoa">Head office admin</option><option value="md">MD</option></select>`,1):'')+F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
+  modal('Raise a request',F('Type',`<select name="type">${opts(RTYPES,RTYPES[0])}</select>`)+F('Amount in AED (if any)',`<input type="number" min="0" step="0.01" name="amount">`)+
    F('Request',`<input name="title" required placeholder="e.g. Annual leave 14–18 Nov">`,1)+F('Details / justification',`<textarea name="details"></textarea>`,1)+F('Needed by',`${dateInput('neededBy','')}`),
    fd=>{const byMgr=m.role!=='staff',toMd=byMgr||fd.sendTo==='md';put('requests',uid(),{...fd,sendTo:toMd?'md':'hoa',amount:fd.amount===''?null:+fd.amount,staffId:m.id,clinicId:m.clinicId,dept:m.dept,status:toMd?'referred':'pending',mgrNote:byMgr?'Raised by head office admin':'',createdAt:new Date().toISOString()});toast(toMd?'Sent to the MD':'Sent to head office admin')},{label:'Send request'})}
 function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),act=canAct({id,...r});const kv=(k,v)=>v||v===0?`<dt>${k}</dt><dd>${esc(v)}</dd>`:'';
@@ -702,7 +704,7 @@ function decideForm(id){const r=S.requests[id];if(!r)return;const role=myRole(),
   modal(r.title,`<dl class="kv full">${kv('Status',rstat(r)[0])}${kv('Type',r.type)}${kv('Amount',aed(r.amount))}${kv('Requested by',staffName(r.staffId)+' · '+(r.dept||''))}${kv('Clinic',clinicName(r.clinicId))}${kv('Needed by',dmy(r.neededBy))}${kv('Raised',when(r.createdAt))}${kv('Details',r.details)}${kv('Returned with note',r.returnNote?`${retBy(r)}: ${r.returnNote}`:'')}${kv('Staff reply',r.staffReply)}${kv('Referred to MD',r.mgrNote?`${r.mgrBy?r.mgrBy+': ':''}${r.mgrNote}`:'')}${kv('Decision',r.adminBy||r.adminNote?`${r.adminBy||''} (${r.decidedRole||'MD'})${r.adminNote?': '+r.adminNote:''}`:'')}</dl>`+
    (act?F(role==='admin'?'MD comment (required when returning)':'Comment (required when returning or referring to the MD)',`<textarea name="note"></textarea>`,1):''),
    act?(fd,choice)=>{if(!choice)return false;const by=me()?.name||'MD',at=new Date().toISOString();
-     if(choice==='return'){if(!fd.note.trim()){toast('Add a note saying what the staff member needs to do.');return false}put('requests',id,{...r,status:'returned',prevStatus:r.status,returnNote:fd.note,returnedBy:by,returnedRole:role==='admin'?'MD':'Head office admin',returnedAt:at});toast('Returned to '+staffName(r.staffId));return}
+     if(choice==='return'){if(!fd.note.trim()){toast('Add a note saying what the staff member needs to do.');return false}put('requests',id,{...r,status:'returned',prevStatus:staffDirect(r)?'pending':r.status,returnNote:fd.note,returnedBy:by,returnedRole:role==='admin'?'MD':'Head office admin',returnedAt:at});toast('Returned to '+staffName(r.staffId));return}
      if(choice==='refer'){if(!fd.note.trim()){toast('Add a note for the MD.');return false}put('requests',id,{...r,status:'referred',mgrNote:fd.note,mgrBy:by,mgrAt:at});toast('Referred to the MD');return}
      put('requests',id,{...r,status:choice==='yes'?'approved':'rejected',adminNote:fd.note,adminBy:by,decidedRole:role==='admin'?'MD':'Head office admin',decidedAt:at});
      toast(choice==='yes'?'Approved':'Rejected')}:null,{buttons:btns,noFocus:1})}
