@@ -411,21 +411,22 @@ const SOON=14,isFar=t=>isOpen(t)&&!!t.dueDate&&t.dueDate>addDays(today(),SOON);
 const isOverdue=t=>isOpen(t)&&t.dueDate&&dueKey(t)<nowKey();
 const isMissed=t=>isOpen(t)&&t.dueDate&&t.dueDate<today();
 /* ---------- task list: each person's standing duties, by how often they come round ---------- */
+const DDEPTS=['Operations','HR','Insurance','Marketing','Maintenance','DHA related','IT & Software','Others'];
 const DFREQ=[['daily','Every day'],['weekly','Every week'],['monthly','Every month'],['yearly','Every year']];
 const dutyArr=()=>Object.entries(S.duties).map(([id,d])=>({id,...d})).filter(d=>!d.removed);
 const canEditDuty=d=>myRole()!=='staff'||d.staffId===me()?.id;
 function vTaskList(){
   const isStaff=myRole()==='staff',who=isStaff?me()?.id:(UI.dutyWho??''),St=staffArr().filter(inClinic).filter(s=>s.active!==false);
-  const D=dutyArr().filter(d=>who?d.staffId===who:St.some(s=>s.id===d.staffId));
-  const pick=isStaff?'':`<label class="f">Staff member<select data-change="dutyWho">${opts(St.map(s=>[s.id,`${s.name} · ${s.dept}`]),who,'Everyone')}</select></label>`;
-  const row=d=>`<div class="row"><div></div><div style="min-width:0"><div class="t">${esc(d.title)}</div><div class="m">${who?'':`<span><b>${esc(staffName(d.staffId))}</b></span><span>${esc(S.staff[d.staffId]?.dept||'')}</span>`}${d.when?`<span>🕒 ${esc(d.when)}</span>`:''}${d.notes?`<span>${esc(d.notes)}</span>`:''}</div></div><div class="acts">${canEditDuty(d)?`<button class="btn sm ghost" data-act="dutyForm" data-id="${d.id}">Edit</button>`:''}</div></div>`;
+  const dep=UI.dutyDept||'',D=dutyArr().filter(d=>who?d.staffId===who:St.some(s=>s.id===d.staffId)).filter(d=>!dep||d.dutyDept===dep);
+  const pick=`<label class="f">Department<select data-change="dutyDept">${opts(DDEPTS,dep,'All departments')}</select></label>`+(isStaff?'':`<label class="f">Staff member<select data-change="dutyWho">${opts(St.map(s=>[s.id,`${s.name} · ${s.dept}`]),who,'Everyone')}</select></label>`);
+  const row=d=>`<div class="row"><div></div><div style="min-width:0"><div class="t">${esc(d.title)}</div><div class="m">${d.dutyDept?`<span class="chip muted">${esc(d.dutyDept)}</span>`:''}${who?'':`<span><b>${esc(staffName(d.staffId))}</b></span><span>${esc(S.staff[d.staffId]?.dept||'')}</span>`}${d.when?`<span>🕒 ${esc(d.when)}</span>`:''}${d.notes?`<span>${esc(d.notes)}</span>`:''}</div></div><div class="acts">${canEditDuty(d)?`<button class="btn sm ghost" data-act="dutyForm" data-id="${d.id}">Edit</button>`:''}</div></div>`;
   const head=`<section class="panel"><div class="panel-head"><div><h2>${who?esc(staffName(who)):'All staff'}</h2><p>${isStaff?'Everything you do regularly, so you and head office can see your whole job at a glance.':'Each person lists their own regular duties. Pick a staff member to see one person\'s full list.'} ${D.length} dut${D.length===1?'y':'ies'}.</p></div><div class="filters">${pick}${!who&&!isStaff?'':`<button class="btn primary sm" data-act="dutyForm" data-who="${who||''}">Add to task list</button>`}</div></div></section>`;
   return head+`<div class="grid2">${DFREQ.map(([k,l])=>{const L=D.filter(d=>d.freq===k).sort((a,b)=>(staffName(a.staffId)+a.title).localeCompare(staffName(b.staffId)+b.title));
     return`<section class="panel"><div class="panel-head"><div><h2>${l}</h2><p>${L.length} dut${L.length===1?'y':'ies'}</p></div>${who?`<button class="btn sm" data-act="dutyForm" data-who="${who}" data-freq="${k}">Add</button>`:''}</div><div class="list">${L.map(row).join('')||'<div class="mini">Nothing listed yet.</div>'}</div></section>`}).join('')}</div>`}
 function dutyForm(id,who,freq){const d=id?S.duties[id]:{staffId:who||me()?.id||'',freq:freq||'daily',title:'',notes:'',when:''};if(!d||!d.staffId){toast('Pick a staff member first.');return}
   modal(id?'Edit duty':`Add to ${myRole()==='staff'?'your':esc(staffName(d.staffId))+"'s"} task list`,
    F('Duty',`<input name="title" required value="${esc(d.title)}" placeholder="e.g. Send daily sales report to accounts">`,1)+
-   F('How often',`<select name="freq">${opts(DFREQ,d.freq)}</select>`)+
+   F('Department',`<select name="dutyDept" required>${opts(DDEPTS,d.dutyDept,'Choose')}</select>`)+F('How often',`<select name="freq">${opts(DFREQ,d.freq)}</select>`)+
    F('When (optional)',`<input name="when" value="${esc(d.when||'')}" placeholder="e.g. 10am, Mondays, 1st of month, January">`)+
    F('Notes (optional)',`<textarea name="notes">${esc(d.notes||'')}</textarea>`,1),
    fd=>{const by=me()?.name||'MD';put('duties',id||uid(),{...d,...fd,staffId:d.staffId,clinicId:S.staff[d.staffId]?.clinicId||'',updatedBy:by,updatedAt:new Date().toISOString(),createdAt:d.createdAt||new Date().toISOString(),createdBy:d.createdBy||by});toast(id?'Saved':'Added to task list')},
@@ -1007,7 +1008,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('change',e=>{const k=e.target.dataset.change;if(!k)return;const v=e.target.value;
   if(k==='acting'){UI.actingAs=v;const s=S.staff[v];if(s&&s.role==='staff')UI.clinic=s.clinicId;else if(!v)UI.clinic='';UI.view=s&&s.role==='staff'?'myday':UI.view}
   else if(k==='staffMobile'){put('settings','app',{...(S.settings.app||{}),staffMobile:v,updatedAt:new Date().toISOString()});toast(v==='block'?'Staff now need a computer':'Staff can now use phones and tablets')}
-  else if(k==='dutyWho')UI.dutyWho=v;
+  else if(k==='dutyWho')UI.dutyWho=v;else if(k==='dutyDept')UI.dutyDept=v;
   else if(k==='clinic')UI.clinic=v;else if(k==='actWho')UI.actWho=v;else if(k==='actDays')UI.actDays=+v;else if(k==='rDate')UI.rDate=v;else if(k.startsWith('tf.'))UI.tf[k.slice(3)]=v;
   saveUI();render()});
 let qT;document.addEventListener('input',e=>{if(e.target.dataset.input!=='tf.q')return;UI.tf.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>{saveUI();render();const el=document.getElementById('tf-q');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)});
