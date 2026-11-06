@@ -219,7 +219,7 @@ const SEVL=Object.fromEntries(SEV.map(s=>[s[0],s[1]]));
 const SEVH=Object.fromEntries(SEV.map(s=>[s[0],s[2]]));
 const CCATS=['Waiting time','Staff behaviour','Treatment outcome','Billing / pricing','Insurance / claim','Appointment / booking','Facility / hygiene','Other'];
 const CHANNELS=['Walk-in','Phone','WhatsApp','Email','Google review','Social media'];
-const COLS=['clinics','staff','tasks','reports','complaints','requests','attendance','settings'];
+const COLS=['clinics','staff','tasks','reports','complaints','requests','attendance','duties','settings'];
 const RTYPES=['Request','Others'];
 const RSTAT={pending:['Waiting for head office admin','warnc'],referred:['Referred to MD','s-progress'],recommended:['Referred to MD','s-progress'],not_recommended:['Referred to MD (not recommended)','bad'],approved:['Approved','ok'],rejected:['Rejected','bad'],returned:['Returned with note','warnc']};
 
@@ -247,7 +247,7 @@ function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
 let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,2600)}
 
 /* ---------- store: shared db when available, this-device storage otherwise ---------- */
-const S={clinics:{},staff:{},tasks:{},reports:{},complaints:{},requests:{},attendance:{},settings:{}};
+const S={clinics:{},staff:{},tasks:{},reports:{},complaints:{},requests:{},attendance:{},duties:{},settings:{}};
 let mode='connecting',db=null,adminOK=true;const chains={};
 function clean(o){return JSON.parse(JSON.stringify(o))}
 function saveLocal(){lsSet('cod.data',S)}
@@ -410,6 +410,26 @@ const isOpen=t=>t.status!=='done';
 const SOON=14,isFar=t=>isOpen(t)&&!!t.dueDate&&t.dueDate>addDays(today(),SOON);
 const isOverdue=t=>isOpen(t)&&t.dueDate&&dueKey(t)<nowKey();
 const isMissed=t=>isOpen(t)&&t.dueDate&&t.dueDate<today();
+/* ---------- task list: each person's standing duties, by how often they come round ---------- */
+const DFREQ=[['daily','Every day'],['weekly','Every week'],['monthly','Every month'],['yearly','Every year']];
+const dutyArr=()=>Object.entries(S.duties).map(([id,d])=>({id,...d})).filter(d=>!d.removed);
+const canEditDuty=d=>myRole()!=='staff'||d.staffId===me()?.id;
+function vTaskList(){
+  const isStaff=myRole()==='staff',who=isStaff?me()?.id:(UI.dutyWho??''),St=staffArr().filter(inClinic).filter(s=>s.active!==false);
+  const D=dutyArr().filter(d=>who?d.staffId===who:St.some(s=>s.id===d.staffId));
+  const pick=isStaff?'':`<label class="f">Staff member<select data-change="dutyWho">${opts(St.map(s=>[s.id,`${s.name} · ${s.dept}`]),who,'Everyone')}</select></label>`;
+  const row=d=>`<div class="row"><div></div><div style="min-width:0"><div class="t">${esc(d.title)}</div><div class="m">${who?'':`<span><b>${esc(staffName(d.staffId))}</b></span><span>${esc(S.staff[d.staffId]?.dept||'')}</span>`}${d.when?`<span>🕒 ${esc(d.when)}</span>`:''}${d.notes?`<span>${esc(d.notes)}</span>`:''}</div></div><div class="acts">${canEditDuty(d)?`<button class="btn sm ghost" data-act="dutyForm" data-id="${d.id}">Edit</button>`:''}</div></div>`;
+  const head=`<section class="panel"><div class="panel-head"><div><h2>${who?esc(staffName(who)):'All staff'}</h2><p>${isStaff?'Everything you do regularly, so you and head office can see your whole job at a glance.':'Each person lists their own regular duties. Pick a staff member to see one person\'s full list.'} ${D.length} dut${D.length===1?'y':'ies'}.</p></div><div class="filters">${pick}${!who&&!isStaff?'':`<button class="btn primary sm" data-act="dutyForm" data-who="${who||''}">Add to task list</button>`}</div></div></section>`;
+  return head+`<div class="grid2">${DFREQ.map(([k,l])=>{const L=D.filter(d=>d.freq===k).sort((a,b)=>(staffName(a.staffId)+a.title).localeCompare(staffName(b.staffId)+b.title));
+    return`<section class="panel"><div class="panel-head"><div><h2>${l}</h2><p>${L.length} dut${L.length===1?'y':'ies'}</p></div>${who?`<button class="btn sm" data-act="dutyForm" data-who="${who}" data-freq="${k}">Add</button>`:''}</div><div class="list">${L.map(row).join('')||'<div class="mini">Nothing listed yet.</div>'}</div></section>`}).join('')}</div>`}
+function dutyForm(id,who,freq){const d=id?S.duties[id]:{staffId:who||me()?.id||'',freq:freq||'daily',title:'',notes:'',when:''};if(!d||!d.staffId){toast('Pick a staff member first.');return}
+  modal(id?'Edit duty':`Add to ${myRole()==='staff'?'your':esc(staffName(d.staffId))+"'s"} task list`,
+   F('Duty',`<input name="title" required value="${esc(d.title)}" placeholder="e.g. Send daily sales report to accounts">`,1)+
+   F('How often',`<select name="freq">${opts(DFREQ,d.freq)}</select>`)+
+   F('When (optional)',`<input name="when" value="${esc(d.when||'')}" placeholder="e.g. 10am, Mondays, 1st of month, January">`)+
+   F('Notes (optional)',`<textarea name="notes">${esc(d.notes||'')}</textarea>`,1),
+   fd=>{const by=me()?.name||'MD';put('duties',id||uid(),{...d,...fd,staffId:d.staffId,clinicId:S.staff[d.staffId]?.clinicId||'',updatedBy:by,updatedAt:new Date().toISOString(),createdAt:d.createdAt||new Date().toISOString(),createdBy:d.createdBy||by});toast(id?'Saved':'Added to task list')},
+   {left:id?`<button type="button" class="btn danger" data-act="dutyDel" data-id="${id}">Remove</button>`:''})}
 function inClinic(x){return!UI.clinic||x.clinicId===UI.clinic}
 function taskSort(a,b){const ma=isMissed(a)?1:0,mb=isMissed(b)?1:0;if(ma!==mb)return mb-ma;const pa=PRIW[a.priority]||0,pb=PRIW[b.priority]||0;if(pa!==pb)return pb-pa;return(dueKey(a)).localeCompare(dueKey(b))}
 const reportsDue=s=>s.role!=='admin';
@@ -469,7 +489,7 @@ function scoreCell(s){const[l,c]=grade(s);const col=s==null?'var(--line)':s>=85?
 
 /* ---------- render ---------- */
 let raf=0;function schedule(){if(raf)return;raf=requestAnimationFrame(()=>{raf=0;render()})}
-const NAV=[['admin','MD review',['admin','manager']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
+const NAV=[['admin','MD review',['admin','manager']],['dashboard','Dashboard',['admin','manager']],['myday','My day',['admin','manager','staff']],['tasklist','Task list',['admin','manager','staff']],['tasks','Tasks',['admin','manager']],['reports','Daily reports',['admin','manager']],['complaints','Patient complaints',['admin','manager','staff']],['requests','Approvals',['admin','manager','staff']],['efficiency','Efficiency',['admin','manager']],['setup','Clinics & staff',['admin','manager']]];
 function needsStart(){const sid=PROFILE?.staff_id;const s=S.staff[sid];return!adminOK&&s&&s.role!=='admin'&&!loginOf_(sid,today())}
 function startDayScreen(){const s=S.staff[PROFILE.staff_id];const h=+dubai().time.slice(0,2);
   return`<div class="startday"><div class="startday-card"><div class="eyebrow">${esc(new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long'}))} ${esc(dmy(today()))} · ${esc(dubai().time)}</div>
@@ -501,12 +521,12 @@ function render(){
   document.getElementById('nav').innerHTML=allowed.map(([k,l])=>{let b='';if(k==='tasks'&&missedN)b=`<span class="badge" title="Missed tasks">${missedN}</span>`;if(k==='complaints'&&openC)b=`<span class="badge" title="Open complaints">${openC}</span>`;if(k==='requests'&&reqWait)b=`<span class="badge" title="Waiting for your decision">${reqWait}</span>`;if(k==='admin'){const n=reqWait+toVerify().length;if(n)b=`<span class="badge" title="Items waiting for you">${n}</span>`}if(k==='myday'&&myOpen)b=`<span class="badge" title="Due or overdue">${myOpen}</span>`;
     return`<button data-act="nav" data-v="${k}" ${UI.view===k?'aria-current="page"':''}><span>${k==='admin'&&role==='manager'?'Verify & approve':l}</span>${b}</button>`}).join('');
   document.getElementById('railFoot').innerHTML=`<span>Signed in as <b>${esc(PROFILE.username)}</b>${adminOK?' · MD':''}</span><span style="display:flex;gap:6px;flex-wrap:wrap">${adminOK?'<button class="btn sm" data-act="ownPw">Change password</button>':''}${notifButton()}<button class="btn sm" data-act="signOut">Sign out</button></span><span>● Live for all staff · Dubai time</span>`;
-  const V={admin:vAdmin,requests:vRequests,dashboard:vDashboard,myday:vMyDay,tasks:vTasks,reports:vReports,complaints:vComplaints,efficiency:vEfficiency,setup:vSetup}[UI.view];
+  const V={admin:vAdmin,requests:vRequests,dashboard:vDashboard,myday:vMyDay,tasklist:vTaskList,tasks:vTasks,reports:vReports,complaints:vComplaints,efficiency:vEfficiency,setup:vSetup}[UI.view];
   const main=document.getElementById('main');const y=window.scrollY;
   main.innerHTML=topbar()+notifBanner()+V();
   window.scrollTo(0,y)}
 function topbar(){
-  const titles={admin:'MD review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
+  const titles={admin:'MD review',requests:'Approvals',dashboard:'Head office dashboard',myday:'My day',tasklist:'Task list',tasks:'Tasks',reports:'Daily reports',complaints:'Patient complaints',efficiency:'Work efficiency',setup:'Clinics & staff'};
   const d=new Date().toLocaleDateString('en-GB',{timeZone:TZ,weekday:'long'})+' '+dmy(today());
   return`<div class="topbar"><div><div class="eyebrow">${esc(d)}</div><h1>${UI.view==='admin'&&myRole()==='manager'?'Verify & approve':titles[UI.view]}</h1></div>
   <div class="who">${adminOK?'':`<button class="btn sm" data-act="signOut" title="Signed in as ${esc(PROFILE.username)}">Sign out</button>`}${!adminOK?'':`<label class="f">View as<select id="actingAs" data-change="acting"><option value="">MD (you)</option>${staffArr().map(s=>`<option value="${s.id}"${s.id===UI.actingAs?' selected':''}>${esc(s.name)} · ${esc(s.dept)}</option>`).join('')}</select></label>`}
@@ -934,6 +954,8 @@ async function clearSample(){const W=[];COLS.forEach(c=>Object.entries(S[c]).for
 const pendingDel={};
 function confirmBtn(b,fn){const k=b.dataset.act+b.dataset.id;if(pendingDel[k]){delete pendingDel[k];fn();return}pendingDel[k]=1;b.textContent='Click again to confirm';setTimeout(()=>{delete pendingDel[k];if(b.isConnected)b.textContent='Delete'},3500)}
 const ACT={
+  dutyForm:d=>dutyForm(d.id,d.who,d.freq),
+  dutyDel:(d,b)=>confirmBtn(b,()=>{const x=S.duties[d.id];if(!x)return;if(dlg.open)dlg.close();put('duties',d.id,{...x,removed:true,removedAt:new Date().toISOString()});toast('Removed from task list')}),
   nav:d=>{UI.view=d.v;saveUI();render();window.scrollTo(0,0)},
   closeDlg:()=>dlg.close(),
   newTask:d=>{if(!clinicArr().length||!staffArr().length){toast('Add clinics and staff first.');return}taskForm(null,d.self&&me()?.name)},
@@ -985,6 +1007,7 @@ document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(
 document.addEventListener('change',e=>{const k=e.target.dataset.change;if(!k)return;const v=e.target.value;
   if(k==='acting'){UI.actingAs=v;const s=S.staff[v];if(s&&s.role==='staff')UI.clinic=s.clinicId;else if(!v)UI.clinic='';UI.view=s&&s.role==='staff'?'myday':UI.view}
   else if(k==='staffMobile'){put('settings','app',{...(S.settings.app||{}),staffMobile:v,updatedAt:new Date().toISOString()});toast(v==='block'?'Staff now need a computer':'Staff can now use phones and tablets')}
+  else if(k==='dutyWho')UI.dutyWho=v;
   else if(k==='clinic')UI.clinic=v;else if(k==='actWho')UI.actWho=v;else if(k==='actDays')UI.actDays=+v;else if(k==='rDate')UI.rDate=v;else if(k.startsWith('tf.'))UI.tf[k.slice(3)]=v;
   saveUI();render()});
 let qT;document.addEventListener('input',e=>{if(e.target.dataset.input!=='tf.q')return;UI.tf.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>{saveUI();render();const el=document.getElementById('tf-q');if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}},250)});
